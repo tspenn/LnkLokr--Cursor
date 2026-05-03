@@ -1,0 +1,47 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "installCommand": "npm install",
+  "cleanUrls": true,
+  "trailingSlash": false,
+
+  "functions": {
+    "api/stripe/webhook.ts": {
+      "memory": 256,
+      "maxDuration": 30
+    },
+    "api/stripe/create-checkout-session.ts": {
+      "memory": 256,
+      "maxDuration": 15
+    }
+  },
+
+  "rewrites": [
+    { "source": "/api/stripe/webhook", "destination": "/api/stripe/webhook" },
+    { "source": "/api/stripe/create-checkout-session", "destination": "/api/stripe/create-checkout-session" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
+
+  "headers": [
+    {
+      "source": "/api/stripe/webhook",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, max-age=0" }
+      ]
+    },
+    {
+      "source": "/icons/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    }
+  ]
+}
