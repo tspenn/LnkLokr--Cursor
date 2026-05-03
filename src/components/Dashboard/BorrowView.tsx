@@ -366,7 +366,7 @@ export function BorrowView() {
                         </h3>
                         {item.url && (
                           <p className="text-xs text-gray-500 truncate">
-                            {new URL(item.url).hostname}
+                            {(() => { try { return new URL(item.url).hostname } catch { return item.url } })()}
                           </p>
                         )}
                         {item.file_size && (

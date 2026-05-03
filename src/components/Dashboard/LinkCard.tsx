@@ -79,7 +79,7 @@ export function LinkCard({ link, onDelete, onCopySuccess }: LinkCardProps) {
 
           <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-500">
             <Icon name="globe" size={12} />
-            <span className="truncate">{new URL(link.url).hostname}</span>
+            <span className="truncate">{(() => { try { return new URL(link.url).hostname } catch { return link.url } })()}</span>
           </div>
         </div>
 

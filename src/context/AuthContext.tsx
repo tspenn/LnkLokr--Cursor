@@ -140,10 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           premium_until: null,
         })
 
-        if (insertError) {
-          if (!insertError.message.includes('duplicate key')) {
-            await supabase.auth.admin.deleteUser(user.id).catch(() => {})
-          }
+        if (insertError && !insertError.message.includes('duplicate key')) {
           throw insertError
         }
       }
