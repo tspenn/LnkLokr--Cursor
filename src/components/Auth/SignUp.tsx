@@ -137,7 +137,7 @@ export function SignUp({ onLoginClick }: SignUpProps) {
 
         <div className="absolute bottom-8 right-8">
           <img
-            src="/level_lock_box.png"
+            src="/icons/treasure_chest_transparent.png"
             alt="Lockbox"
             width="180"
             height="180"
