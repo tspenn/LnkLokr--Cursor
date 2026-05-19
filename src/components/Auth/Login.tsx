@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { Header } from '../shared/Header'
 import { Icon } from '../shared/Icon'
+import { TREASURE_CHEST_SRC } from '@/lib/chestIcon'
 
 interface LoginProps {
   onSignUpClick: () => void
@@ -97,7 +98,7 @@ export function Login({ onSignUpClick }: LoginProps) {
 
         <div className="absolute bottom-8 right-8">
           <img
-            src="/icons/treasure_chest_transparent.png"
+            src={TREASURE_CHEST_SRC}
             alt="Lockbox"
             width="180"
             height="180"
