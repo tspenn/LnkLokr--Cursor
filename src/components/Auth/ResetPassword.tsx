@@ -26,16 +26,44 @@ export function ResetPassword() {
     let cancelled = false
 
     const verifySession = async () => {
-      const params = new URLSearchParams(window.location.search)
-      const code = params.get('code')
-      if (code) {
-        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-        if (exchangeError && !cancelled) {
-          setLinkError(exchangeError.message)
+      // 1. Handle implicit flow: #access_token=...&type=recovery in the URL hash
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+      const accessToken = hashParams.get('access_token')
+      const refreshToken = hashParams.get('refresh_token') ?? ''
+      const hashType = hashParams.get('type')
+
+      if (accessToken && hashType === 'recovery') {
+        const { data, error: sessionError } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        })
+        if (cancelled) return
+        if (sessionError) {
+          setLinkError('This reset link has expired. Please request a new one.')
+          return
+        }
+        if (data.session) {
+          window.history.replaceState(null, '', '/reset-password')
+          setSessionReady(true)
+          setLinkError(null)
           return
         }
       }
 
+      // 2. Handle PKCE flow: ?code= in the URL query string
+      const params = new URLSearchParams(window.location.search)
+      const code = params.get('code')
+      if (code) {
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+        if (cancelled) return
+        if (exchangeError) {
+          setLinkError('This reset link has expired. Please request a new one.')
+          return
+        }
+        window.history.replaceState(null, '', '/reset-password')
+      }
+
+      // 3. Check if session already exists (e.g. already exchanged)
       const { data: { session } } = await supabase.auth.getSession()
       if (cancelled) return
 
@@ -46,15 +74,19 @@ export function ResetPassword() {
         setLinkError(
           'Open the password reset link from your email. Links expire after a short time — request a new one below.',
         )
+      } else {
+        // Token in URL but session not ready yet — wait for onAuthStateChange
       }
     }
 
     verifySession()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY' && session) {
-        setSessionReady(true)
-        setLinkError(null)
+      if ((event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') && session) {
+        if (!cancelled) {
+          setSessionReady(true)
+          setLinkError(null)
+        }
       }
     })
 
