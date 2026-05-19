@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { supabase } from '@/lib/supabase'
-import { getAuthErrorFromUrl, hasAuthCallbackInUrl } from '@/lib/authUrl'
+import { getAuthErrorFromUrl } from '@/lib/authUrl'
 import { Header } from '../shared/Header'
 import { Icon } from '../shared/Icon'
 
@@ -13,10 +13,11 @@ export function ResetPassword() {
   const [isLoading, setIsLoading] = useState(false)
   const [done, setDone] = useState(false)
   const [sessionReady, setSessionReady] = useState(false)
-  const [linkError, setLinkError] = useState<string | null>(() => getAuthErrorFromUrl())
-  const { updatePassword, error, loading: authLoading } = useAuth()
+  const [linkError, setLinkError] = useState<string | null>(null)
+  const { updatePassword, error } = useAuth()
 
   useEffect(() => {
+    // Check for error in URL first (e.g. otp_expired)
     const urlError = getAuthErrorFromUrl()
     if (urlError) {
       setLinkError(urlError)
@@ -25,68 +26,46 @@ export function ResetPassword() {
 
     let cancelled = false
 
-    const verifySession = async () => {
-      // 1. Handle implicit flow: #access_token=...&type=recovery in the URL hash
-      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
-      const accessToken = hashParams.get('access_token')
-      const refreshToken = hashParams.get('refresh_token') ?? ''
-      const hashType = hashParams.get('type')
-
-      if (accessToken && hashType === 'recovery') {
-        const { data, error: sessionError } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        })
+    // detectSessionInUrl fires PASSWORD_RECOVERY automatically when
+    // the URL has #access_token=...&type=recovery — listen for it first.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
         if (cancelled) return
-        if (sessionError) {
-          setLinkError('This reset link has expired. Please request a new one.')
-          return
-        }
-        if (data.session) {
+        if (
+          (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') &&
+          session
+        ) {
+          // Clear the token from the URL so back/refresh doesn't re-trigger
           window.history.replaceState(null, '', '/reset-password')
           setSessionReady(true)
           setLinkError(null)
-          return
         }
-      }
+      },
+    )
 
-      // 2. Handle PKCE flow: ?code= in the URL query string
-      const params = new URLSearchParams(window.location.search)
-      const code = params.get('code')
-      if (code) {
-        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-        if (cancelled) return
-        if (exchangeError) {
-          setLinkError('This reset link has expired. Please request a new one.')
-          return
-        }
-        window.history.replaceState(null, '', '/reset-password')
-      }
-
-      // 3. Check if session already exists (e.g. already exchanged)
-      const { data: { session } } = await supabase.auth.getSession()
-      if (cancelled) return
-
+    // Also check if a session already exists (e.g. INITIAL_SESSION already fired)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (cancelled || sessionReady) return
       if (session) {
+        window.history.replaceState(null, '', '/reset-password')
         setSessionReady(true)
         setLinkError(null)
-      } else if (!hasAuthCallbackInUrl()) {
-        setLinkError(
-          'Open the password reset link from your email. Links expire after a short time — request a new one below.',
-        )
       } else {
-        // Token in URL but session not ready yet — wait for onAuthStateChange
-      }
-    }
-
-    verifySession()
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if ((event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') && session) {
-        if (!cancelled) {
-          setSessionReady(true)
-          setLinkError(null)
-        }
+        // Give detectSessionInUrl up to 4s to fire PASSWORD_RECOVERY
+        setTimeout(() => {
+          if (cancelled || sessionReady) return
+          supabase.auth.getSession().then(({ data: { session: s2 } }) => {
+            if (cancelled) return
+            if (s2) {
+              setSessionReady(true)
+              setLinkError(null)
+            } else {
+              setLinkError(
+                'This reset link has expired or was already used. Request a new one below.',
+              )
+            }
+          })
+        }, 4000)
       }
     })
 
@@ -94,16 +73,11 @@ export function ResetPassword() {
       cancelled = true
       subscription.unsubscribe()
     }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setValidationError('')
-
-    if (!sessionReady) {
-      setValidationError('Reset session expired. Request a new link from the login page.')
-      return
-    }
 
     if (password.length < 6) {
       setValidationError('Password must be at least 6 characters')
@@ -117,7 +91,6 @@ export function ResetPassword() {
     setIsLoading(true)
     try {
       await updatePassword(password)
-      window.history.replaceState(null, '', '/reset-password')
       setDone(true)
     } finally {
       setIsLoading(false)
@@ -125,8 +98,7 @@ export function ResetPassword() {
   }
 
   const displayError = validationError || error
-  const waitingForSession =
-    !linkError && !sessionReady && (authLoading || hasAuthCallbackInUrl())
+  const waitingForSession = !linkError && !sessionReady
 
   if (waitingForSession) {
     return (
@@ -194,7 +166,7 @@ export function ResetPassword() {
                     required
                     minLength={6}
                     className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-400 focus:border-pink-400 transition"
-                    disabled={isLoading || !sessionReady}
+                    disabled={isLoading}
                   />
                 </div>
               </div>
@@ -210,14 +182,14 @@ export function ResetPassword() {
                     required
                     minLength={6}
                     className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-400 focus:border-pink-400 transition"
-                    disabled={isLoading || !sessionReady}
+                    disabled={isLoading}
                   />
                 </div>
               </div>
 
               <button
                 type="submit"
-                disabled={isLoading || !sessionReady || !password || !confirmPassword}
+                disabled={isLoading || !password || !confirmPassword}
                 className="w-full bg-gradient-to-r from-pink-400 to-orange-300 hover:from-pink-500 hover:to-orange-400 disabled:from-gray-300 disabled:to-gray-300 text-white font-bold py-3 rounded-lg transition shadow-md hover:shadow-lg disabled:cursor-not-allowed"
               >
                 {isLoading ? 'Saving...' : 'Update password'}

@@ -178,15 +178,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 })
               }
             } else if (event === 'SIGNED_OUT') {
-              clearPasswordRecoveryPending()
-              clearAwaitingPasswordReset()
-              setAuthState({
-                isAuthenticated: false,
-                user: null,
-                loading: false,
-                error: null,
-                passwordRecovery: false,
-              })
+              // Don't clear recovery state if we're in the middle of a password reset
+              const onResetPage =
+                typeof window !== 'undefined' &&
+                window.location.pathname.endsWith('/reset-password')
+              if (!onResetPage) {
+                clearPasswordRecoveryPending()
+                clearAwaitingPasswordReset()
+                setAuthState({
+                  isAuthenticated: false,
+                  user: null,
+                  loading: false,
+                  error: null,
+                  passwordRecovery: false,
+                })
+              }
             } else {
               setAuthState(prev => ({ ...prev, loading: false }))
             }
