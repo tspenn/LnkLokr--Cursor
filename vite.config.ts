@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
 import { copyFileSync } from 'fs'
 
@@ -13,6 +14,54 @@ const isExtensionBuild = process.env.BUILD_TARGET === 'extension'
 export default defineConfig({
   plugins: [
     react(),
+    !isExtensionBuild &&
+      VitePWA({
+        registerType: 'autoUpdate',
+        includeAssets: ['icons/lokr-extension-144.png', 'icons/Lokr.png'],
+        manifest: {
+          name: 'LnkLokr - Your Link Manager',
+          short_name: 'LnkLokr',
+          description: 'Save, organize, and sync your links across all devices',
+          theme_color: '#0ea5e9',
+          background_color: '#ffffff',
+          display: 'standalone',
+          orientation: 'portrait-primary',
+          scope: '/',
+          start_url: '/',
+          icons: [
+            {
+              src: '/icons/icon-192.png',
+              sizes: '192x192',
+              type: 'image/png',
+              purpose: 'any',
+            },
+            {
+              src: '/icons/icon-512.png',
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'any',
+            },
+            {
+              src: '/icons/icon-192-maskable.png',
+              sizes: '192x192',
+              type: 'image/png',
+              purpose: 'maskable',
+            },
+            {
+              src: '/icons/icon-512-maskable.png',
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'maskable',
+            },
+          ],
+          categories: ['productivity'],
+        },
+        workbox: {
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff2}'],
+          navigateFallback: '/index.html',
+          navigateFallbackDenylist: [/^\/api\//],
+        },
+      }),
     {
       name: 'copy-extension-content-script',
       closeBundle() {
@@ -24,7 +73,7 @@ export default defineConfig({
         }
       },
     },
-  ],
+  ].filter(Boolean),
   base: '/',
   resolve: {
     alias: {
@@ -52,8 +101,6 @@ export default defineConfig({
           copyPublicDir: true,
         }
       : {
-          // Vercel: single-page app build, fingerprinted assets, no extension
-          // entry points.
           rollupOptions: {
             input: {
               main: path.resolve(__dirname, 'index.html'),
