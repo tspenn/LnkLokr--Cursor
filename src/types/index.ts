@@ -2,19 +2,28 @@ export interface User {
   id: string
   email: string
   is_premium: boolean
+  subscription_tier: 'free' | 'standard' | 'premium' | 'complimentary'
   premium_until: string | null
+  cloud_sync: boolean
+  device_limit: number
+  stripe_customer_id: string | null
+  last_purchase_tier: string | null
+  bury_password: string | null
+  storage_used: number
   created_at: string
   updated_at: string
 }
 
 export interface Folder {
   id: string
+  user_id: string
   name: string
   description?: string
   color?: string
   icon?: string
   position?: number
   created_at: string
+  updated_at?: string
 }
 
 export interface Tag {
@@ -26,6 +35,7 @@ export interface Tag {
 
 export interface Link {
   id: string
+  user_id?: string
   folder_id?: string | null
   url: string
   title: string
@@ -34,7 +44,11 @@ export interface Link {
   notes?: string | null
   tags?: string[]
   is_favorite?: boolean
+  status?: 'keep' | 'borrow' | 'share' | 'bury'
+  category_id?: string | null
+  content_type?: string
   created_at: string
+  updated_at?: string
 }
 
 export interface BorrowCategory {
@@ -49,14 +63,21 @@ export interface BorrowCategory {
 export interface SavedItem {
   id: string
   user_id: string
-  file_name: string
-  file_size: number
-  mime_type: string
   storage_path: string
-  thumbnail_url: string | null
+  public_url: string
+  original_src: string
+  title: string
+  alt?: string
+  page_title?: string
+  page_url?: string
+  mime_type: string
+  file_size: number
+  file_name: string
   content_type: string
   status: 'keep' | 'borrow' | 'share' | 'bury'
   category_id: string | null
+  thumbnail_url: string | null
+  folder_id?: string | null
   created_at: string
   updated_at: string
 }

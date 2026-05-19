@@ -2,8 +2,8 @@ import { createClient } from '@supabase/supabase-js'
 
 console.log('Background service worker starting')
 
-const SUPABASE_URL = 'https://multehbzauvwmonzwivh.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im11bHRlaGJ6YXV2d21vbnp3aXZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxMDg5ODksImV4cCI6MjA4NTY4NDk4OX0.dqI2z_qsrAEoiqiVcf8P7LwC23pRkOcX3abySpcO1wM'
+const SUPABASE_URL = 'https://psbdjnqcjpxapypcfigx.supabase.co'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBzYmRqbnFjanB4YXB5cGNmaWd4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzODA5OTAsImV4cCI6MjA4OTk1Njk5MH0.nOqbHOZYT8GKfqgUrXbZam4Q9B973gqWe_bC5drQVGk'
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {

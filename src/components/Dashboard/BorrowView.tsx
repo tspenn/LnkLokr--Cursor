@@ -92,14 +92,14 @@ export function BorrowView() {
         icon: null,
         content_type: 'url',
         created_at: link.created_at,
-        category_id: null,
+        category_id: link.category_id ?? null,
       }))
 
       const savedItems: BorrowItem[] = (savedRes.data || []).map((item: SavedItem) => ({
         id: item.id,
         type: 'saved_item' as const,
-        title: item.file_name,
-        thumbnail: item.thumbnail_url,
+        title: item.title || item.file_name,
+        thumbnail: item.thumbnail_url || (item.content_type === 'image' ? item.public_url : null),
         content_type: item.content_type || 'image',
         file_name: item.file_name,
         file_size: item.file_size,

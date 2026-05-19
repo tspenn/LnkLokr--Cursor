@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { PURCHASE_URL } from '@/lib/premiumService'
@@ -13,10 +14,11 @@ import { BorrowView } from './BorrowView'
 import { Header } from '../shared/Header'
 import { Icon } from '../shared/Icon'
 
-type TabView = 'menu' | 'keep' | 'borrow' | 'links' | 'images' | 'files' | 'pdfs'
+type TabView = 'menu' | 'keep' | 'borrow' | 'links' | 'images' | 'files' | 'pdfs' | 'bury'
 
 export function Dashboard() {
   const { user, signOut } = useAuth()
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<TabView>('menu')
   const [links, setLinks] = useState<Link[]>([])
   const [folders, setFolders] = useState<Folder[]>([])
@@ -106,7 +108,7 @@ export function Dashboard() {
     try {
       const { error } = await supabase.from('links').delete().eq('id', id)
       if (error) throw error
-      setLinks(links.filter(link => link.id !== id))
+      setLinks(prev => prev.filter(link => link.id !== id))
     } catch (error) {
       console.error('Failed to delete link:', error)
     }
@@ -114,13 +116,13 @@ export function Dashboard() {
 
   const handleBuryClick = () => {
     if (!buryPassword) {
-      setActiveTab('images')
+      setActiveTab('bury')
       setBuryUnlocked(true)
       return
     }
 
     if (buryUnlocked) {
-      setActiveTab('images')
+      setActiveTab('bury')
       return
     }
 
@@ -135,7 +137,7 @@ export function Dashboard() {
     if (buryPasswordInput === buryPassword) {
       setBuryUnlocked(true)
       setShowBuryPasswordEntry(false)
-      setActiveTab('images')
+      setActiveTab('bury')
       setPasswordError('')
     } else {
       setPasswordError('Incorrect password')
@@ -253,6 +255,15 @@ export function Dashboard() {
               Bury
             </button>
 
+            <button
+              onClick={() => navigate('/dreamkeeper')}
+              className="w-full bg-amber-100 border-4 border-black p-6 flex items-center gap-4 text-3xl font-bold text-gray-900 hover:bg-amber-200 transition shadow-lg hover:shadow-xl"
+              style={{ fontStyle: 'italic' }}
+            >
+              <span className="text-4xl">📋</span>
+              Dream Keeper
+            </button>
+
             <div className="flex justify-center pt-12 pb-8">
               <img
                 src="/icons/treasure_chest_transparent.png"
@@ -310,13 +321,13 @@ export function Dashboard() {
           <div className="flex flex-col h-full bg-gray-50">
             <div className="px-6 py-4 border-b border-gray-200 bg-white space-y-4">
               <button
-                onClick={() => setActiveTab(activeTab === 'images' ? 'menu' : 'keep')}
+                onClick={() => setActiveTab(activeTab === 'images' || activeTab === 'bury' ? 'menu' : 'keep')}
                 className="flex items-center gap-2 text-gray-600 hover:text-gray-900 font-medium"
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M19 12H5M5 12L12 19M5 12L12 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
-                {activeTab === 'images' ? 'Back to Menu' : 'Back to Keep'}
+                {activeTab === 'images' || activeTab === 'bury' ? 'Back to Menu' : 'Back to Keep'}
               </button>
 
               {activeTab === 'links' && (
@@ -391,6 +402,8 @@ export function Dashboard() {
                   <SavedGallery contentType="file" />
                 ) : activeTab === 'pdfs' ? (
                   <SavedGallery contentType="pdf" />
+                ) : activeTab === 'bury' ? (
+                  <SavedGallery contentType="image" status="bury" />
                 ) : (
                   <SavedGallery contentType="image" />
                 )}

@@ -118,6 +118,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             .from('users')
             .update({
               is_premium: true,
+              subscription_tier: 'premium',
               device_limit: DEVICE_LIMITS[tier],
               stripe_customer_id: customerId,
               last_purchase_tier: tier,
@@ -129,6 +130,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             .from('users')
             .update({
               is_premium: true,
+              subscription_tier: 'premium',
               cloud_sync: true,
               stripe_customer_id: customerId,
               last_purchase_tier: tier,
@@ -140,6 +142,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             .from('users')
             .update({
               is_premium: true,
+              subscription_tier: 'premium',
               stripe_customer_id: customerId,
             })
             .eq('email', email)
@@ -158,6 +161,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .from('users')
           .update({
             is_premium: isActive,
+            subscription_tier: isActive ? 'premium' : 'free',
             cloud_sync: isActive && (!tier || CLOUD_TIERS.has(tier)),
             premium_until: sub.current_period_end
               ? new Date(sub.current_period_end * 1000).toISOString()
@@ -175,6 +179,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .from('users')
           .update({
             is_premium: false,
+            subscription_tier: 'free',
             cloud_sync: false,
             premium_until: null,
           })

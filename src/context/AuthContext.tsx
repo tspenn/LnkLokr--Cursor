@@ -137,6 +137,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           id: user.id,
           email: user.email,
           is_premium: false,
+          subscription_tier: 'free',
           premium_until: null,
         })
 

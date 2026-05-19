@@ -1,9 +1,11 @@
 import { useState } from 'react'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from '@/context/AuthContext'
 import { ToastProvider } from '@/context/ToastContext'
 import { Login } from '@/components/Auth/Login'
 import { SignUp } from '@/components/Auth/SignUp'
 import { Dashboard } from '@/components/Dashboard/Dashboard'
+import { DreamKeeper } from '@/components/Dashboard/DreamKeeper'
 
 function AppContent() {
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
@@ -30,7 +32,15 @@ function AppContent() {
     )
   }
 
-  return <Dashboard />
+  return (
+    <Routes>
+      <Route path="/" element={<Dashboard />} />
+      <Route path="/dashboard" element={<Dashboard />} />
+      <Route path="/dreamkeeper/:id" element={<DreamKeeper />} />
+      <Route path="/dreamkeeper" element={<DreamKeeper />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
 }
 
 export function App() {

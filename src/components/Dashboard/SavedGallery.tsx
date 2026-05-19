@@ -30,9 +30,10 @@ interface Folder {
 
 interface SavedGalleryProps {
   contentType?: 'image' | 'pdf' | 'file'
+  status?: 'keep' | 'borrow' | 'share' | 'bury'
 }
 
-export function SavedGallery({ contentType = 'image' }: SavedGalleryProps) {
+export function SavedGallery({ contentType = 'image', status }: SavedGalleryProps) {
   const { user } = useAuth()
   const [items, setItems] = useState<SavedItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -47,13 +48,18 @@ export function SavedGallery({ contentType = 'image' }: SavedGalleryProps) {
     if (!user) return
 
     try {
+      let itemsQuery = supabase
+        .from('saved_items')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('content_type', contentType)
+
+      if (status) {
+        itemsQuery = itemsQuery.eq('status', status)
+      }
+
       const [itemsResponse, foldersResponse] = await Promise.all([
-        supabase
-          .from('saved_items')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('content_type', contentType)
-          .order('created_at', { ascending: false }),
+        itemsQuery.order('created_at', { ascending: false }),
         supabase
           .from('folders')
           .select('*')
@@ -85,7 +91,7 @@ export function SavedGallery({ contentType = 'image' }: SavedGalleryProps) {
     loadSavedItems()
 
     const channel = supabase
-      .channel(`saved-items-${user.id}-${contentType}`)
+      .channel(`saved-items-${user.id}-${contentType}-${status ?? 'all'}`)
       .on(
         'postgres_changes',
         {
@@ -114,7 +120,7 @@ export function SavedGallery({ contentType = 'image' }: SavedGalleryProps) {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [user, contentType])
+  }, [user, contentType, status])
 
   const handleDelete = async (item: SavedItem) => {
     if (!confirm(`Delete "${item.title}"?`)) return
