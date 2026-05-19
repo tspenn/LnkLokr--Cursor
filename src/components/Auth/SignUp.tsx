@@ -136,13 +136,13 @@ export function SignUp({ onLoginClick }: SignUpProps) {
           </p>
         </div>
 
-        <div className="absolute bottom-8 right-8">
+        <div className="absolute bottom-4 right-4 pointer-events-none z-0">
           <img
             src={TREASURE_CHEST_SRC}
             alt="Lockbox"
-            width="180"
-            height="180"
-            className="drop-shadow-lg"
+            width="96"
+            height="96"
+            className="w-24 h-24 object-contain drop-shadow-lg"
           />
         </div>
       </main>

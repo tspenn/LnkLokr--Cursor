@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import { copyFileSync } from 'fs'
 
 /**
  * Native Vercel web-app build config. The Chrome extension multi-entry build
@@ -10,7 +11,20 @@ import path from 'path'
 const isExtensionBuild = process.env.BUILD_TARGET === 'extension'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: 'copy-extension-content-script',
+      closeBundle() {
+        if (process.env.BUILD_TARGET === 'extension') {
+          copyFileSync(
+            path.resolve(__dirname, 'content.js'),
+            path.resolve(__dirname, 'dist/content.js')
+          )
+        }
+      },
+    },
+  ],
   base: '/',
   resolve: {
     alias: {
@@ -27,7 +41,6 @@ export default defineConfig({
               popup: path.resolve(__dirname, 'popup.html'),
               main: path.resolve(__dirname, 'index.html'),
               background: path.resolve(__dirname, 'background.js'),
-              content: path.resolve(__dirname, 'content.js'),
             },
             output: {
               dir: 'dist',

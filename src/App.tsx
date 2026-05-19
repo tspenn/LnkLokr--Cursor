@@ -1,21 +1,23 @@
 import { useState } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from '@/context/AuthContext'
 import { ToastProvider } from '@/context/ToastContext'
 import { Login } from '@/components/Auth/Login'
 import { SignUp } from '@/components/Auth/SignUp'
+import { ResetPassword } from '@/components/Auth/ResetPassword'
 import { Dashboard } from '@/components/Dashboard/Dashboard'
 import { DreamKeeper } from '@/components/Dashboard/DreamKeeper'
 
 function AppContent() {
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
   const { isAuthenticated, loading } = useAuth()
+  const location = useLocation()
 
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-gradient-to-b from-cyan-100 via-pink-50 to-pink-200 gap-4">
         <img
-          src="/icons/Lokr.png"
+          src="/icons/lokr-extension-144.png"
           alt="LnkLokr"
           className="w-24 h-24 object-contain animate-pulse drop-shadow-lg"
         />
@@ -25,6 +27,9 @@ function AppContent() {
   }
 
   if (!isAuthenticated) {
+    if (location.pathname === '/reset-password') {
+      return <ResetPassword />
+    }
     return authMode === 'login' ? (
       <Login onSignUpClick={() => setAuthMode('signup')} />
     ) : (

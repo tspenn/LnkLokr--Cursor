@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { getAuthRedirectUrl } from '@/lib/authRedirect'
 import { User, AuthState } from '@/types'
 
 interface AuthContextType extends AuthState {
@@ -7,6 +8,8 @@ interface AuthContextType extends AuthState {
   signIn: (email: string, password: string) => Promise<void>
   signInWithGoogle: () => Promise<void>
   signOut: () => Promise<void>
+  resetPassword: (email: string) => Promise<void>
+  updatePassword: (password: string) => Promise<void>
   updateProfile: (data: Partial<User>) => Promise<void>
 }
 
@@ -212,6 +215,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const resetPassword = async (email: string) => {
+    try {
+      setAuthState(prev => ({ ...prev, error: null }))
+
+      const redirectTo = getAuthRedirectUrl('/reset-password')
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo,
+      })
+
+      if (error) throw error
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not send reset email'
+      setAuthState(prev => ({ ...prev, error: message }))
+      throw error
+    }
+  }
+
+  const updatePassword = async (password: string) => {
+    try {
+      setAuthState(prev => ({ ...prev, error: null }))
+
+      const { error } = await supabase.auth.updateUser({ password })
+      if (error) throw error
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not update password'
+      setAuthState(prev => ({ ...prev, error: message }))
+      throw error
+    }
+  }
+
   const signOut = async () => {
     try {
       setAuthState(prev => ({ ...prev, error: null }))
@@ -254,6 +287,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signIn,
         signInWithGoogle,
         signOut,
+        resetPassword,
+        updatePassword,
         updateProfile,
       }}
     >
