@@ -19,6 +19,9 @@
   },
 
   "rewrites": [
+    { "source": "/reset-password", "destination": "/index.html" },
+    { "source": "/dashboard", "destination": "/index.html" },
+    { "source": "/dreamkeeper/:path*", "destination": "/index.html" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
 
