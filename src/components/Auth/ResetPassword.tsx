@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { supabase } from '@/lib/supabase'
-import { getAuthErrorFromUrl } from '@/lib/authUrl'
+import { clearAwaitingPasswordReset, clearPasswordRecoveryPending, getAuthErrorFromUrl } from '@/lib/authUrl'
 import { Header } from '../shared/Header'
 import { Icon } from '../shared/Icon'
 
@@ -15,6 +15,13 @@ export function ResetPassword() {
   const [sessionReady, setSessionReady] = useState(false)
   const [linkError, setLinkError] = useState<string | null>(null)
   const { updatePassword, error } = useAuth()
+  const navigate = useNavigate()
+
+  const goToLogin = () => {
+    clearPasswordRecoveryPending()
+    clearAwaitingPasswordReset()
+    navigate('/', { replace: true })
+  }
 
   useEffect(() => {
     // Check for error in URL first (e.g. otp_expired)
@@ -126,12 +133,13 @@ export function ResetPassword() {
           {done ? (
             <div className="text-center space-y-4">
               <p className="text-green-700 font-medium">Your password has been updated.</p>
-              <Link
-                to="/"
-                className="inline-block text-pink-600 hover:text-pink-700 font-medium underline"
+              <button
+                type="button"
+                onClick={goToLogin}
+                className="text-pink-600 hover:text-pink-700 font-medium underline"
               >
                 Sign in
-              </Link>
+              </button>
             </div>
           ) : linkError ? (
             <div className="space-y-4 text-center">
@@ -139,12 +147,13 @@ export function ResetPassword() {
                 <Icon name="alert-circle" size={16} className="flex-shrink-0 mt-0.5" />
                 <span>{linkError}</span>
               </div>
-              <Link
-                to="/"
-                className="inline-block text-pink-600 hover:text-pink-700 font-medium underline"
+              <button
+                type="button"
+                onClick={goToLogin}
+                className="text-pink-600 hover:text-pink-700 font-medium underline"
               >
                 Back to login — request a new reset link
-              </Link>
+              </button>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
