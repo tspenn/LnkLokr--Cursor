@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
-import { copyFileSync } from 'fs'
+import { copyFileSync, existsSync, readdirSync, unlinkSync } from 'fs'
 
 /**
  * Native Vercel web-app build config. The Chrome extension multi-entry build
@@ -63,13 +63,24 @@ export default defineConfig({
         },
       }),
     {
-      name: 'copy-extension-content-script',
+      name: 'copy-extension-assets',
       closeBundle() {
-        if (process.env.BUILD_TARGET === 'extension') {
-          copyFileSync(
-            path.resolve(__dirname, 'content.js'),
-            path.resolve(__dirname, 'dist/content.js')
-          )
+        if (process.env.BUILD_TARGET !== 'extension') return
+
+        const dist = path.resolve(__dirname, 'dist')
+        copyFileSync(path.resolve(__dirname, 'content.js'), path.join(dist, 'content.js'))
+        copyFileSync(path.resolve(__dirname, 'manifest.json'), path.join(dist, 'manifest.json'))
+
+        // Remove PWA artifacts from web builds — Chrome needs manifest.json only.
+        for (const file of readdirSync(dist)) {
+          if (
+            file === 'sw.js' ||
+            file === 'registerSW.js' ||
+            file === 'manifest.webmanifest' ||
+            file.startsWith('workbox-')
+          ) {
+            unlinkSync(path.join(dist, file))
+          }
         }
       },
     },
