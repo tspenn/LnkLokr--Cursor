@@ -16,6 +16,32 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      (function () {
+        var h = window.location.hash || '';
+        var s = window.location.search || '';
+        var isRecovery =
+          h.indexOf('type=recovery') !== -1 ||
+          h.indexOf('access_token') !== -1 ||
+          s.indexOf('type=recovery') !== -1 ||
+          (s.indexOf('code=') !== -1 && window.location.pathname.indexOf('reset') !== -1);
+        if (!isRecovery) return;
+        try {
+          sessionStorage.setItem('lnklokr_password_recovery', '1');
+        } catch (e) {}
+        if (window.location.pathname.indexOf('reset-password') === -1) {
+          window.location.replace('/reset-password' + s + h);
+        }
+      })();
+
+      (function () {
+        var h = window.location.hash || '';
+        if (h.indexOf('error=') === -1) return;
+        if (window.location.pathname.indexOf('reset-password') === -1) {
+          window.location.replace('/reset-password' + h);
+        }
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

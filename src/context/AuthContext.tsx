@@ -1,7 +1,51 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { getAuthRedirectUrl } from '@/lib/authRedirect'
+import {
+  clearAwaitingPasswordReset,
+  clearPasswordRecoveryPending,
+  ensureResetPasswordPath,
+  hasAuthCallbackInUrl,
+  isAwaitingPasswordReset,
+  isPasswordRecoveryPending,
+  isPasswordRecoveryUrl,
+  markAwaitingPasswordReset,
+  markPasswordRecoveryPending,
+} from '@/lib/authUrl'
+import { normalizeUser } from '@/lib/normalizeUser'
 import { User, AuthState } from '@/types'
+import type { User as SupabaseUser } from '@supabase/supabase-js'
+
+async function fetchOrCreateUserProfile(authUser: SupabaseUser): Promise<User | null> {
+  const { data: userData } = await supabase
+    .from('users')
+    .select('*')
+    .eq('id', authUser.id)
+    .maybeSingle()
+
+  if (userData) {
+    return normalizeUser(userData as Record<string, unknown>)
+  }
+
+  const { data: created, error } = await supabase
+    .from('users')
+    .insert({
+      id: authUser.id,
+      email: authUser.email ?? '',
+      is_premium: false,
+      subscription_tier: 'free',
+      premium_until: null,
+    })
+    .select('*')
+    .single()
+
+  if (error) {
+    console.error('Could not create user profile:', error.message)
+    return null
+  }
+
+  return normalizeUser(created as Record<string, unknown>)
+}
 
 interface AuthContextType extends AuthState {
   signUp: (email: string, password: string) => Promise<void>
@@ -16,43 +60,56 @@ interface AuthContextType extends AuthState {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [authState, setAuthState] = useState<AuthState>({
+  const [authState, setAuthState] = useState<AuthState>(() => ({
     isAuthenticated: false,
     user: null,
-    loading: true,
+    loading: hasAuthCallbackInUrl() || isPasswordRecoveryUrl(),
     error: null,
-  })
+    passwordRecovery: isPasswordRecoveryUrl(),
+  }))
 
   useEffect(() => {
     let mounted = true
+
+    if (isPasswordRecoveryUrl()) {
+      markPasswordRecoveryPending()
+      ensureResetPasswordPath()
+    }
 
     const initializeAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession()
         if (mounted && session?.user) {
-          const { data: userData } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', session.user.id)
-            .maybeSingle()
+          const recoveryFromEmail =
+            isPasswordRecoveryUrl() ||
+            isPasswordRecoveryPending() ||
+            (isAwaitingPasswordReset() && Boolean(session))
 
-          if (mounted) {
-            if (userData) {
-              setAuthState({
-                isAuthenticated: true,
-                user: userData,
-                loading: false,
-                error: null,
-              })
-            } else {
-              await supabase.auth.signOut()
-              setAuthState({
-                isAuthenticated: false,
-                user: null,
-                loading: false,
-                error: null,
-              })
-            }
+          if (recoveryFromEmail) {
+            markPasswordRecoveryPending()
+            ensureResetPasswordPath()
+          }
+
+          const profile = await fetchOrCreateUserProfile(session.user)
+          if (!mounted) return
+
+          if (profile) {
+            setAuthState(prev => ({
+              isAuthenticated: true,
+              user: profile,
+              loading: false,
+              error: null,
+              passwordRecovery: prev.passwordRecovery || recoveryFromEmail,
+            }))
+          } else {
+            await supabase.auth.signOut()
+            setAuthState({
+              isAuthenticated: false,
+              user: null,
+              loading: false,
+              error: null,
+              passwordRecovery: false,
+            })
           }
         } else if (mounted) {
           setAuthState(prev => ({ ...prev, loading: false }))
@@ -65,6 +122,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             error: error instanceof Error ? error.message : 'Auth error',
           }))
         }
+      } finally {
+        if (mounted) {
+          setAuthState(prev => (prev.loading ? { ...prev, loading: false } : prev))
+        }
       }
     }
 
@@ -76,20 +137,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         (async () => {
           try {
-            if (event === 'SIGNED_IN' && session?.user) {
-              const { data: userData } = await supabase
-                .from('users')
-                .select('*')
-                .eq('id', session.user.id)
-                .maybeSingle()
+            if (event === 'PASSWORD_RECOVERY' && session?.user) {
+              markPasswordRecoveryPending()
+              ensureResetPasswordPath()
+              const profile = await fetchOrCreateUserProfile(session.user)
+              if (!mounted) return
 
-              if (userData) {
-                setAuthState({
+              setAuthState({
+                isAuthenticated: Boolean(profile),
+                user: profile,
+                loading: false,
+                error: null,
+                passwordRecovery: true,
+              })
+            } else if (
+              (event === 'SIGNED_IN' ||
+                event === 'INITIAL_SESSION' ||
+                event === 'TOKEN_REFRESHED') &&
+              session?.user
+            ) {
+              const profile = await fetchOrCreateUserProfile(session.user)
+              if (!mounted) return
+
+              if (profile) {
+                setAuthState(prev => ({
                   isAuthenticated: true,
-                  user: userData,
+                  user: profile,
                   loading: false,
                   error: null,
-                })
+                  passwordRecovery: prev.passwordRecovery,
+                }))
               } else {
                 await supabase.auth.signOut()
                 setAuthState({
@@ -97,15 +174,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   user: null,
                   loading: false,
                   error: null,
+                  passwordRecovery: false,
                 })
               }
             } else if (event === 'SIGNED_OUT') {
+              clearPasswordRecoveryPending()
+              clearAwaitingPasswordReset()
               setAuthState({
                 isAuthenticated: false,
                 user: null,
                 loading: false,
                 error: null,
+                passwordRecovery: false,
               })
+            } else {
+              setAuthState(prev => ({ ...prev, loading: false }))
             }
           } catch (error) {
             setAuthState(prev => ({
@@ -177,6 +260,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
 
       if (error) throw error
+      clearAwaitingPasswordReset()
     } catch (error) {
       let message = 'Sign in failed'
 
@@ -203,7 +287,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
+          redirectTo: getAuthRedirectUrl('/'),
         },
       })
 
@@ -218,6 +302,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const resetPassword = async (email: string) => {
     try {
       setAuthState(prev => ({ ...prev, error: null }))
+
+      markAwaitingPasswordReset()
 
       const redirectTo = getAuthRedirectUrl('/reset-password')
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -238,8 +324,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const { error } = await supabase.auth.updateUser({ password })
       if (error) throw error
+
+      clearPasswordRecoveryPending()
+      clearAwaitingPasswordReset()
+      setAuthState(prev => ({ ...prev, passwordRecovery: false }))
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Could not update password'
+      let message = error instanceof Error ? error.message : 'Could not update password'
+      if (message.toLowerCase().includes('auth session missing')) {
+        message =
+          'This reset link has expired or was already used. Go to login, choose Forgot password, and request a new email.'
+      }
       setAuthState(prev => ({ ...prev, error: message }))
       throw error
     }

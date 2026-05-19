@@ -1,16 +1,23 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { BrowserRouter } from 'react-router-dom'
-import { App } from './App'
 import { localStore } from './lib/localStore'
+import { isSupabaseConfigured } from './lib/supabaseConfig'
+import { ConfigMissing } from './components/shared/ConfigMissing'
 import './index.css'
 
-localStore.init().catch(console.error).finally(() => {
+function renderConfigMissing() {
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
+      <ConfigMissing />
     </React.StrictMode>,
   )
+}
+
+localStore.init().catch(console.error).finally(() => {
+  if (!isSupabaseConfigured) {
+    renderConfigMissing()
+    return
+  }
+
+  import('./bootstrap').then(({ mountApp }) => mountApp())
 })

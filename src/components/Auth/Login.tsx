@@ -1,5 +1,6 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
+import { getAuthErrorFromUrl } from '@/lib/authUrl'
 import { Header } from '../shared/Header'
 import { Icon } from '../shared/Icon'
 import { TREASURE_CHEST_SRC } from '@/lib/chestIcon'
@@ -14,7 +15,17 @@ export function Login({ onSignUpClick }: LoginProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [mode, setMode] = useState<'signin' | 'forgot'>('signin')
   const [resetSent, setResetSent] = useState(false)
+  const [linkError, setLinkError] = useState<string | null>(null)
   const { signIn, resetPassword, error } = useAuth()
+
+  useEffect(() => {
+    const urlError = getAuthErrorFromUrl()
+    if (urlError) {
+      setLinkError(urlError)
+      setMode('forgot')
+      window.history.replaceState(null, '', window.location.pathname)
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -41,9 +52,17 @@ export function Login({ onSignUpClick }: LoginProps) {
             {mode === 'forgot' ? 'Reset password' : 'Welcome Back'}
           </h2>
 
-          {mode === 'forgot' && resetSent && (
+          {linkError && (
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-sm">
+              {linkError} Request a new link below. If you use Outlook or corporate email, copy the
+              link and paste it into the browser instead of clicking (email scanners can break links).
+            </div>
+          )}
+
+          {mode === 'forgot' && resetSent && !linkError && (
             <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-800 text-sm">
-              Check your email for a reset link. Open it in your browser to choose a new password.
+              Check your email for a reset link. Use the <strong>latest</strong> email only. Open the
+              link once — if it fails, request another reset here.
             </div>
           )}
 

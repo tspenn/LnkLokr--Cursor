@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from '@/context/AuthContext'
 import { ToastProvider } from '@/context/ToastContext'
 import { Login } from '@/components/Auth/Login'
@@ -7,11 +7,27 @@ import { SignUp } from '@/components/Auth/SignUp'
 import { ResetPassword } from '@/components/Auth/ResetPassword'
 import { Dashboard } from '@/components/Dashboard/Dashboard'
 import { DreamKeeper } from '@/components/Dashboard/DreamKeeper'
+import { ensureResetPasswordPath, isPasswordRecoveryUrl } from '@/lib/authUrl'
 
 function AppContent() {
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
-  const { isAuthenticated, loading } = useAuth()
+  const { isAuthenticated, loading, passwordRecovery } = useAuth()
   const location = useLocation()
+  const navigate = useNavigate()
+  const showResetPassword =
+    passwordRecovery ||
+    isPasswordRecoveryUrl() ||
+    location.pathname === '/reset-password' ||
+    location.pathname.endsWith('/reset-password')
+
+  useEffect(() => {
+    if (isPasswordRecoveryUrl() && !location.pathname.endsWith('/reset-password')) {
+      ensureResetPasswordPath()
+      navigate(`/reset-password${window.location.hash}${window.location.search}`, {
+        replace: true,
+      })
+    }
+  }, [location.pathname, navigate])
 
   if (loading) {
     return (
@@ -26,10 +42,11 @@ function AppContent() {
     )
   }
 
+  if (showResetPassword) {
+    return <ResetPassword />
+  }
+
   if (!isAuthenticated) {
-    if (location.pathname === '/reset-password') {
-      return <ResetPassword />
-    }
     return authMode === 'login' ? (
       <Login onSignUpClick={() => setAuthMode('signup')} />
     ) : (

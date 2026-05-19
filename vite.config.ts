@@ -67,7 +67,7 @@ export default defineConfig({
       closeBundle() {
         if (process.env.BUILD_TARGET !== 'extension') return
 
-        const dist = path.resolve(__dirname, 'dist')
+        const dist = path.resolve(__dirname, 'dist-extension')
         copyFileSync(path.resolve(__dirname, 'content.js'), path.join(dist, 'content.js'))
         copyFileSync(path.resolve(__dirname, 'manifest.json'), path.join(dist, 'manifest.json'))
 
@@ -96,6 +96,8 @@ export default defineConfig({
     sourcemap: false,
     ...(isExtensionBuild
       ? {
+          outDir: 'dist-extension',
+          emptyOutDir: true,
           rollupOptions: {
             input: {
               popup: path.resolve(__dirname, 'popup.html'),
@@ -103,7 +105,7 @@ export default defineConfig({
               background: path.resolve(__dirname, 'background.js'),
             },
             output: {
-              dir: 'dist',
+              dir: 'dist-extension',
               entryFileNames: '[name].js',
               chunkFileNames: '[name].js',
               assetFileNames: 'assets/[name].[ext]',

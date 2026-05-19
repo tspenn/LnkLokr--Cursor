@@ -155,43 +155,13 @@ export function Dashboard() {
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
-      <Header />
-
-      <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-        <div>
-          <p className="text-sm text-gray-600">{user?.email}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {user?.is_premium ? (
-            <div className="flex items-center gap-1 px-3 py-1 bg-amber-50 text-amber-700 rounded-full text-sm font-medium">
-              <Icon name="crown" size={16} />
-              Premium
-            </div>
-          ) : (
-            <button
-              onClick={() => window.open(PURCHASE_URL, '_blank', 'noopener,noreferrer')}
-              className="flex items-center gap-1 px-3 py-1 bg-primary-50 text-primary-700 hover:bg-primary-100 rounded-full text-sm font-medium transition"
-            >
-              <Icon name="crown" size={16} />
-              Upgrade
-            </button>
-          )}
-          <button
-            onClick={() => setShowSettings(true)}
-            className="p-2 hover:bg-gray-100 rounded-lg transition"
-            title="Settings"
-          >
-            <Icon name="settings" size={20} className="text-gray-600" />
-          </button>
-          <button
-            onClick={signOut}
-            className="p-2 hover:bg-gray-100 rounded-lg transition"
-            title="Sign Out"
-          >
-            <Icon name="log-out" size={20} className="text-gray-600" />
-          </button>
-        </div>
-      </div>
+      <Header
+        email={user?.email}
+        isPremium={user?.is_premium}
+        onUpgrade={() => window.open(PURCHASE_URL, '_blank', 'noopener,noreferrer')}
+        onSettings={() => setShowSettings(true)}
+        onSignOut={signOut}
+      />
 
       <main className="flex-1 bg-gradient-to-b from-white via-pink-50 to-pink-100 border-x-4 border-b-4 border-black relative overflow-auto">
         {activeTab === 'borrow' ? (

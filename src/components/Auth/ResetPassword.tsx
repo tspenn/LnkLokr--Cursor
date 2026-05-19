@@ -1,6 +1,8 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
+import { supabase } from '@/lib/supabase'
+import { getAuthErrorFromUrl, hasAuthCallbackInUrl } from '@/lib/authUrl'
 import { Header } from '../shared/Header'
 import { Icon } from '../shared/Icon'
 
@@ -10,11 +12,66 @@ export function ResetPassword() {
   const [validationError, setValidationError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [done, setDone] = useState(false)
-  const { updatePassword, error } = useAuth()
+  const [sessionReady, setSessionReady] = useState(false)
+  const [linkError, setLinkError] = useState<string | null>(() => getAuthErrorFromUrl())
+  const { updatePassword, error, loading: authLoading } = useAuth()
+
+  useEffect(() => {
+    const urlError = getAuthErrorFromUrl()
+    if (urlError) {
+      setLinkError(urlError)
+      return
+    }
+
+    let cancelled = false
+
+    const verifySession = async () => {
+      const params = new URLSearchParams(window.location.search)
+      const code = params.get('code')
+      if (code) {
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+        if (exchangeError && !cancelled) {
+          setLinkError(exchangeError.message)
+          return
+        }
+      }
+
+      const { data: { session } } = await supabase.auth.getSession()
+      if (cancelled) return
+
+      if (session) {
+        setSessionReady(true)
+        setLinkError(null)
+      } else if (!hasAuthCallbackInUrl()) {
+        setLinkError(
+          'Open the password reset link from your email. Links expire after a short time — request a new one below.',
+        )
+      }
+    }
+
+    verifySession()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY' && session) {
+        setSessionReady(true)
+        setLinkError(null)
+      }
+    })
+
+    return () => {
+      cancelled = true
+      subscription.unsubscribe()
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setValidationError('')
+
+    if (!sessionReady) {
+      setValidationError('Reset session expired. Request a new link from the login page.')
+      return
+    }
 
     if (password.length < 6) {
       setValidationError('Password must be at least 6 characters')
@@ -28,6 +85,7 @@ export function ResetPassword() {
     setIsLoading(true)
     try {
       await updatePassword(password)
+      window.history.replaceState(null, '', '/reset-password')
       setDone(true)
     } finally {
       setIsLoading(false)
@@ -35,6 +93,21 @@ export function ResetPassword() {
   }
 
   const displayError = validationError || error
+  const waitingForSession =
+    !linkError && !sessionReady && (authLoading || hasAuthCallbackInUrl())
+
+  if (waitingForSession) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-gradient-to-b from-cyan-100 via-pink-50 to-pink-200 gap-4">
+        <img
+          src="/icons/lokr-extension-144.png"
+          alt="LnkLokr"
+          className="w-24 h-24 object-contain animate-pulse drop-shadow-lg"
+        />
+        <p className="text-gray-700 font-semibold">Preparing password reset...</p>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -54,6 +127,19 @@ export function ResetPassword() {
                 className="inline-block text-pink-600 hover:text-pink-700 font-medium underline"
               >
                 Sign in
+              </Link>
+            </div>
+          ) : linkError ? (
+            <div className="space-y-4 text-center">
+              <div className="flex gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-sm text-left">
+                <Icon name="alert-circle" size={16} className="flex-shrink-0 mt-0.5" />
+                <span>{linkError}</span>
+              </div>
+              <Link
+                to="/"
+                className="inline-block text-pink-600 hover:text-pink-700 font-medium underline"
+              >
+                Back to login — request a new reset link
               </Link>
             </div>
           ) : (
@@ -76,7 +162,7 @@ export function ResetPassword() {
                     required
                     minLength={6}
                     className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-400 focus:border-pink-400 transition"
-                    disabled={isLoading}
+                    disabled={isLoading || !sessionReady}
                   />
                 </div>
               </div>
@@ -92,14 +178,14 @@ export function ResetPassword() {
                     required
                     minLength={6}
                     className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-400 focus:border-pink-400 transition"
-                    disabled={isLoading}
+                    disabled={isLoading || !sessionReady}
                   />
                 </div>
               </div>
 
               <button
                 type="submit"
-                disabled={isLoading || !password || !confirmPassword}
+                disabled={isLoading || !sessionReady || !password || !confirmPassword}
                 className="w-full bg-gradient-to-r from-pink-400 to-orange-300 hover:from-pink-500 hover:to-orange-400 disabled:from-gray-300 disabled:to-gray-300 text-white font-bold py-3 rounded-lg transition shadow-md hover:shadow-lg disabled:cursor-not-allowed"
               >
                 {isLoading ? 'Saving...' : 'Update password'}

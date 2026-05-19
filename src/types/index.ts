@@ -98,4 +98,6 @@ export interface AuthState {
   user: User | null
   loading: boolean
   error: string | null
+  /** True after PASSWORD_RECOVERY until the user sets a new password. */
+  passwordRecovery: boolean
 }
