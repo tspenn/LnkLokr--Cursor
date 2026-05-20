@@ -41,7 +41,26 @@ async function fetchOrCreateUserProfile(authUser: SupabaseUser): Promise<User | 
 
   if (error) {
     console.error('Could not create user profile:', error.message)
-    return null
+
+    // If it's a duplicate-key error the row exists but RLS blocked the earlier read.
+    // Try one more time to fetch it.
+    if (error.code === '23505' || error.message.toLowerCase().includes('duplicate')) {
+      const { data: retry } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', authUser.id)
+        .maybeSingle()
+      if (retry) return normalizeUser(retry as Record<string, unknown>)
+    }
+
+    // Fall back to a minimal user object so sign-in isn't silently blocked
+    return normalizeUser({
+      id: authUser.id,
+      email: authUser.email ?? '',
+      is_premium: false,
+      subscription_tier: 'free',
+      premium_until: null,
+    })
   }
 
   return normalizeUser(created as Record<string, unknown>)
@@ -192,14 +211,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   passwordRecovery: prev.passwordRecovery,
                 }))
               } else {
-                await supabase.auth.signOut()
-                setAuthState({
-                  isAuthenticated: false,
-                  user: null,
+                // Profile fetch failed but we still have a valid auth session —
+                // don't sign out. The fallback in fetchOrCreateUserProfile should
+                // prevent reaching here, but just in case, keep the user signed in.
+                setAuthState(prev => ({
+                  ...prev,
+                  isAuthenticated: true,
                   loading: false,
-                  error: null,
-                  passwordRecovery: false,
-                })
+                  error: 'Could not load your profile. Please refresh.',
+                }))
               }
             } else if (event === 'SIGNED_OUT') {
               // Don't clear recovery state if we're in the middle of a password reset
