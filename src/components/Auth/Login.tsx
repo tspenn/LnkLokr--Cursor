@@ -54,7 +54,7 @@ export function Login({ onSignUpClick }: LoginProps) {
           </h2>
           {mode === 'signin' && (
             <p className="text-sm text-gray-500 text-center mb-6">
-              One account for LnkLokr, FRIDAY Canvas &amp; more
+              One account for LnkLokr, FRIDAY Canvas, Go Shop &amp; more
             </p>
           )}
 

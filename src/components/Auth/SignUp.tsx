@@ -50,7 +50,7 @@ export function SignUp({ onLoginClick }: SignUpProps) {
         <div className="w-full max-w-md bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-8 border-2 border-gray-200">
           <h2 className="text-2xl font-bold text-gray-900 mb-1 text-center">Create your Skyland account</h2>
           <p className="text-sm text-gray-500 text-center mb-6">
-            One account for LnkLokr, FRIDAY Canvas &amp; more
+            One account for LnkLokr, FRIDAY Canvas, Go Shop &amp; more
           </p>
 
           <div className="mb-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
