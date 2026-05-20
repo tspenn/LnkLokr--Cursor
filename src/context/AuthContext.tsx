@@ -352,12 +352,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setAuthState(prev => ({ ...prev, error: null }))
 
-      const { error } = await supabase.auth.updateUser({ password })
+      const { data: updateData, error } = await supabase.auth.updateUser({ password })
       if (error) throw error
 
       clearPasswordRecoveryPending()
       clearAwaitingPasswordReset()
-      setAuthState(prev => ({ ...prev, passwordRecovery: false }))
+
+      // Fetch the user profile now (was skipped during recovery to protect the session)
+      const authUser = updateData?.user ?? (await supabase.auth.getUser()).data.user
+      const profile = authUser ? await fetchOrCreateUserProfile(authUser) : null
+
+      setAuthState(prev => ({
+        ...prev,
+        passwordRecovery: false,
+        isAuthenticated: Boolean(profile),
+        user: profile ?? prev.user,
+        loading: false,
+      }))
     } catch (error) {
       let message = error instanceof Error ? error.message : 'Could not update password'
       if (message.toLowerCase().includes('auth session missing')) {
