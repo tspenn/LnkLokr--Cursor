@@ -49,9 +49,14 @@ export function Login({ onSignUpClick }: LoginProps) {
 
       <main className="flex-1 bg-gradient-to-b from-cyan-100 via-pink-50 to-pink-200 border-x-4 border-b-4 border-black relative flex items-center justify-center p-8">
         <div className="w-full max-w-md bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-8 border-2 border-gray-200">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">
-            {mode === 'forgot' ? 'Reset password' : 'Welcome Back'}
+          <h2 className="text-2xl font-bold text-gray-900 mb-1 text-center">
+            {mode === 'forgot' ? 'Reset your Skyland password' : 'Welcome back to Skyland'}
           </h2>
+          {mode === 'signin' && (
+            <p className="text-sm text-gray-500 text-center mb-6">
+              One account for LnkLokr, FRIDAY Canvas &amp; more
+            </p>
+          )}
 
           {linkError && (
             <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-sm">
@@ -168,7 +173,7 @@ export function Login({ onSignUpClick }: LoginProps) {
 
           {mode === 'signin' && (
             <p className="text-center text-gray-600 text-sm mt-6">
-              Don&apos;t have an account?{' '}
+              Don&apos;t have a Skyland account?{' '}
               <button
                 onClick={onSignUpClick}
                 className="text-pink-600 hover:text-pink-700 font-medium underline"

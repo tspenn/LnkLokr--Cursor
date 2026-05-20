@@ -48,7 +48,10 @@ export function SignUp({ onLoginClick }: SignUpProps) {
 
       <main className="flex-1 bg-gradient-to-b from-cyan-100 via-pink-50 to-pink-200 border-x-4 border-b-4 border-black relative flex items-center justify-center p-8">
         <div className="w-full max-w-md bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-8 border-2 border-gray-200">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">Create Account</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-1 text-center">Create your Skyland account</h2>
+          <p className="text-sm text-gray-500 text-center mb-6">
+            One account for LnkLokr, FRIDAY Canvas &amp; more
+          </p>
 
           <div className="mb-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
             <p className="text-sm text-blue-900 leading-relaxed">
@@ -146,7 +149,7 @@ export function SignUp({ onLoginClick }: SignUpProps) {
           </form>
 
           <p className="text-center text-gray-600 text-sm mt-6">
-            Already have an account?{' '}
+            Already have a Skyland account?{' '}
             <button
               onClick={onLoginClick}
               className="text-pink-600 hover:text-pink-700 font-medium underline"
