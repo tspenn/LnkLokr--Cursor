@@ -118,6 +118,48 @@ export function ShareView({ onBack }: ShareViewProps) {
     setActiveMenu(null)
   }
 
+  const handleNativeShare = async (item: ShareItem) => {
+    setActiveMenu(null)
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: item.title,
+          ...(item.url ? { url: item.url } : {}),
+          ...(item.content_type === 'image' && item.thumbnail
+            ? { text: item.title }
+            : {}),
+        })
+      } else {
+        // Fallback: copy to clipboard
+        const text = item.url ?? item.title
+        await navigator.clipboard.writeText(text)
+        alert('Copied to clipboard — paste to share!')
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name !== 'AbortError') {
+        console.error('Share failed:', err)
+      }
+    }
+  }
+
+  const handleEmailShare = (item: ShareItem) => {
+    setActiveMenu(null)
+    const subject = encodeURIComponent(item.title)
+    const body = encodeURIComponent(item.url ?? item.title)
+    window.open(`mailto:?subject=${subject}&body=${body}`)
+  }
+
+  const handleDownload = (item: ShareItem) => {
+    setActiveMenu(null)
+    const src = item.thumbnail ?? item.url
+    if (!src) return
+    const a = document.createElement('a')
+    a.href = src
+    a.download = item.file_name ?? item.title
+    a.target = '_blank'
+    a.click()
+  }
+
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return bytes + ' B'
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
@@ -224,18 +266,54 @@ export function ShareView({ onBack }: ShareViewProps) {
                     </div>
                   )}
 
-                  <div className="absolute top-2 right-2">
+                  {/* Share action bar */}
+                  <div className="border-t-2 border-black flex">
                     <button
-                      onClick={() => setActiveMenu(activeMenu === `${item.type}-${item.id}` ? null : `${item.type}-${item.id}`)}
-                      className="p-2 bg-white border-2 border-black hover:bg-gray-100 transition"
+                      onClick={() => handleNativeShare(item)}
+                      className="flex-1 flex items-center justify-center gap-1 py-2 bg-pink-400 hover:bg-pink-500 text-white font-bold text-sm transition border-r-2 border-black"
+                      title="Share"
                     >
-                      <Icon name="more-vertical" size={16} />
+                      <Icon name="share" size={15} />
+                      Share
                     </button>
+                    <button
+                      onClick={() => handleEmailShare(item)}
+                      className="flex items-center justify-center px-3 py-2 bg-white hover:bg-gray-100 transition border-r-2 border-black"
+                      title="Email"
+                    >
+                      <Icon name="mail" size={15} />
+                    </button>
+                    {(item.thumbnail || item.url) && (
+                      <button
+                        onClick={() => handleDownload(item)}
+                        className="flex items-center justify-center px-3 py-2 bg-white hover:bg-gray-100 transition border-r-2 border-black"
+                        title="Download / Save"
+                      >
+                        <Icon name="download" size={15} />
+                      </button>
+                    )}
+                    {item.url && (
+                      <button
+                        onClick={() => handleCopyUrl(item.url)}
+                        className="flex items-center justify-center px-3 py-2 bg-white hover:bg-gray-100 transition border-r-2 border-black"
+                        title="Copy link"
+                      >
+                        <Icon name="copy" size={15} />
+                      </button>
+                    )}
+                    {/* Move / delete overflow menu */}
+                    <div className="relative">
+                      <button
+                        onClick={() => setActiveMenu(activeMenu === `${item.type}-${item.id}` ? null : `${item.type}-${item.id}`)}
+                        className="flex items-center justify-center px-3 py-2 bg-white hover:bg-gray-100 transition"
+                        title="Move or delete"
+                      >
+                        <Icon name="more-vertical" size={15} />
+                      </button>
 
-                    {activeMenu === `${item.type}-${item.id}` && (
-                      <div className="absolute top-full right-0 mt-1 bg-white border-4 border-black shadow-lg z-10 min-w-48">
-                        {item.url && (
-                          <>
+                      {activeMenu === `${item.type}-${item.id}` && (
+                        <div className="absolute bottom-full right-0 mb-1 bg-white border-4 border-black shadow-lg z-10 min-w-48">
+                          {item.url && (
                             <button
                               onClick={() => window.open(item.url, '_blank')}
                               className="w-full px-4 py-2 text-left hover:bg-gray-100 transition flex items-center gap-2"
@@ -243,38 +321,38 @@ export function ShareView({ onBack }: ShareViewProps) {
                               <Icon name="external-link" size={16} />
                               Open
                             </button>
-                            <button
-                              onClick={() => handleCopyUrl(item.url)}
-                              className="w-full px-4 py-2 text-left hover:bg-gray-100 transition flex items-center gap-2"
-                            >
-                              <Icon name="copy" size={16} />
-                              Copy URL
-                            </button>
-                          </>
-                        )}
-                        <button
-                          onClick={() => handleMoveItem(item.id, item.type, 'keep')}
-                          className="w-full px-4 py-2 text-left hover:bg-gray-100 transition flex items-center gap-2"
-                        >
-                          <Icon name="archive" size={16} />
-                          Move to Keep
-                        </button>
-                        <button
-                          onClick={() => handleMoveItem(item.id, item.type, 'borrow')}
-                          className="w-full px-4 py-2 text-left hover:bg-gray-100 transition flex items-center gap-2"
-                        >
-                          <Icon name="archive" size={16} />
-                          Move to Borrow
-                        </button>
-                        <button
-                          onClick={() => handleDeleteItem(item.id, item.type)}
-                          className="w-full px-4 py-2 text-left hover:bg-red-50 text-red-600 transition flex items-center gap-2 border-t-2 border-black"
-                        >
-                          <Icon name="trash" size={16} />
-                          Delete
-                        </button>
-                      </div>
-                    )}
+                          )}
+                          <button
+                            onClick={() => handleMoveItem(item.id, item.type, 'keep')}
+                            className="w-full px-4 py-2 text-left hover:bg-yellow-50 transition flex items-center gap-2"
+                          >
+                            <Icon name="archive" size={16} />
+                            Move to Keep
+                          </button>
+                          <button
+                            onClick={() => handleMoveItem(item.id, item.type, 'borrow')}
+                            className="w-full px-4 py-2 text-left hover:bg-purple-50 transition flex items-center gap-2"
+                          >
+                            <Icon name="archive" size={16} />
+                            Move to Borrow
+                          </button>
+                          <button
+                            onClick={() => handleMoveItem(item.id, item.type, 'bury')}
+                            className="w-full px-4 py-2 text-left hover:bg-cyan-50 transition flex items-center gap-2"
+                          >
+                            <Icon name="archive" size={16} />
+                            Move to Bury
+                          </button>
+                          <button
+                            onClick={() => handleDeleteItem(item.id, item.type)}
+                            className="w-full px-4 py-2 text-left hover:bg-red-50 text-red-600 transition flex items-center gap-2 border-t-2 border-black"
+                          >
+                            <Icon name="trash" size={16} />
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
