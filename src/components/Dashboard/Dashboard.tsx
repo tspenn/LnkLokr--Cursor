@@ -11,10 +11,11 @@ import { SettingsPanel } from './SettingsPanel'
 import { SavedGallery } from './SavedGallery'
 import { ExportPanel } from './ExportPanel'
 import { BorrowView } from './BorrowView'
+import { ShareView } from './ShareView'
 import { Header } from '../shared/Header'
 import { Icon } from '../shared/Icon'
 
-type TabView = 'menu' | 'keep' | 'borrow' | 'links' | 'images' | 'files' | 'pdfs' | 'bury'
+type TabView = 'menu' | 'keep' | 'borrow' | 'share' | 'links' | 'images' | 'files' | 'pdfs' | 'bury'
 
 export function Dashboard() {
   const { user, signOut } = useAuth()
@@ -164,7 +165,9 @@ export function Dashboard() {
       />
 
       <main className="flex-1 bg-gradient-to-b from-white via-pink-50 to-pink-100 border-x-4 border-b-4 border-black relative overflow-auto">
-        {activeTab === 'borrow' ? (
+        {activeTab === 'share' ? (
+          <ShareView onBack={() => setActiveTab('menu')} />
+        ) : activeTab === 'borrow' ? (
           <BorrowView onBack={() => setActiveTab('menu')} />
         ) : activeTab === 'menu' ? (
           <div className="max-w-md mx-auto px-4 py-8 pb-16 space-y-6">
@@ -197,6 +200,7 @@ export function Dashboard() {
             </button>
 
             <button
+              onClick={() => setActiveTab('share')}
               className="w-full bg-pink-300 border-4 border-black p-6 flex items-center justify-between text-3xl font-bold text-gray-900 hover:bg-pink-400 transition shadow-lg hover:shadow-xl"
               style={{ fontStyle: 'italic' }}
             >
