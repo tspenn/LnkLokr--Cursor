@@ -90,26 +90,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             ensureResetPasswordPath()
           }
 
-          const profile = await fetchOrCreateUserProfile(session.user)
-          if (!mounted) return
-
-          if (profile) {
+          // During password recovery, skip profile fetch — don't risk killing the session
+          if (recoveryFromEmail) {
             setAuthState(prev => ({
               isAuthenticated: true,
-              user: profile,
+              user: prev.user,
               loading: false,
               error: null,
-              passwordRecovery: prev.passwordRecovery || recoveryFromEmail,
+              passwordRecovery: true,
             }))
           } else {
-            await supabase.auth.signOut()
-            setAuthState({
-              isAuthenticated: false,
-              user: null,
-              loading: false,
-              error: null,
-              passwordRecovery: false,
-            })
+            const profile = await fetchOrCreateUserProfile(session.user)
+            if (!mounted) return
+
+            if (profile) {
+              setAuthState(prev => ({
+                isAuthenticated: true,
+                user: profile,
+                loading: false,
+                error: null,
+                passwordRecovery: prev.passwordRecovery,
+              }))
+            } else {
+              await supabase.auth.signOut()
+              setAuthState({
+                isAuthenticated: false,
+                user: null,
+                loading: false,
+                error: null,
+                passwordRecovery: false,
+              })
+            }
           }
         } else if (mounted) {
           setAuthState(prev => ({ ...prev, loading: false }))
@@ -138,24 +149,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         (async () => {
           try {
             if (event === 'PASSWORD_RECOVERY' && session?.user) {
+              // Don't fetch profile here — just mark recovery and show the form.
+              // Fetching profile can fail for shared-project users and would kill the session.
               markPasswordRecoveryPending()
               ensureResetPasswordPath()
-              const profile = await fetchOrCreateUserProfile(session.user)
               if (!mounted) return
-
-              setAuthState({
-                isAuthenticated: Boolean(profile),
-                user: profile,
+              setAuthState(prev => ({
+                ...prev,
+                isAuthenticated: true,
                 loading: false,
-                error: null,
                 passwordRecovery: true,
-              })
+              }))
             } else if (
               (event === 'SIGNED_IN' ||
                 event === 'INITIAL_SESSION' ||
                 event === 'TOKEN_REFRESHED') &&
               session?.user
             ) {
+              // If we're in a recovery flow, don't touch the session
+              const onResetPage =
+                typeof window !== 'undefined' &&
+                window.location.pathname.endsWith('/reset-password')
+              if (onResetPage) {
+                if (!mounted) return
+                setAuthState(prev => ({
+                  ...prev,
+                  isAuthenticated: true,
+                  loading: false,
+                }))
+                return
+              }
+
               const profile = await fetchOrCreateUserProfile(session.user)
               if (!mounted) return
 
