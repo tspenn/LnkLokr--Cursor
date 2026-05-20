@@ -165,7 +165,7 @@ export function Dashboard() {
 
       <main className="flex-1 bg-gradient-to-b from-white via-pink-50 to-pink-100 border-x-4 border-b-4 border-black relative overflow-auto">
         {activeTab === 'borrow' ? (
-          <BorrowView />
+          <BorrowView onBack={() => setActiveTab('menu')} />
         ) : activeTab === 'menu' ? (
           <div className="max-w-md mx-auto px-4 py-8 pb-16 space-y-6">
             <button

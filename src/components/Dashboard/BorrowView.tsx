@@ -20,7 +20,11 @@ interface BorrowItem {
   category_id: string | null
 }
 
-export function BorrowView() {
+interface BorrowViewProps {
+  onBack?: () => void
+}
+
+export function BorrowView({ onBack }: BorrowViewProps) {
   const { user } = useAuth()
   const [filter, setFilter] = useState<FilterType>('all')
   const [items, setItems] = useState<BorrowItem[]>([])
@@ -199,6 +203,18 @@ export function BorrowView() {
     <div className="flex flex-col h-full">
       <div className="bg-purple-200 border-b-4 border-black px-6 py-4">
         <div className="max-w-7xl mx-auto">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="flex items-center gap-2 text-gray-700 hover:text-gray-900 font-medium mb-3 transition"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M19 12H5M5 12L12 19M5 12L12 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Back to Menu
+            </button>
+          )}
+
           {isEditingCategory ? (
             <div className="flex items-center gap-3">
               <input
@@ -318,7 +334,7 @@ export function BorrowView() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto bg-gray-50 p-6">
+      <div className="flex-1 overflow-auto bg-gray-50 p-6 relative">
         <div className="max-w-7xl mx-auto">
           {filteredItems.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -450,6 +466,15 @@ export function BorrowView() {
               </p>
             </div>
           )}
+        </div>
+
+        {/* Basket icon — bottom right decorative, same pattern as other views */}
+        <div className="absolute bottom-4 right-4 pointer-events-none">
+          <img
+            src="/icons/basket.png"
+            alt=""
+            className="w-24 h-24 object-contain drop-shadow-lg opacity-80"
+          />
         </div>
       </div>
     </div>
