@@ -6,6 +6,8 @@ const HEADER_BANNER_SRC = '/header_lnklokr.png'
 interface HeaderProps {
   email?: string
   isPremium?: boolean
+  inboxCount?: number
+  onInbox?: () => void
   onSettings?: () => void
   onSignOut?: () => void
   onUpgrade?: () => void
@@ -14,6 +16,8 @@ interface HeaderProps {
 export function Header({
   email,
   isPremium,
+  inboxCount = 0,
+  onInbox,
   onSettings,
   onSignOut,
   onUpgrade,
@@ -53,6 +57,21 @@ export function Header({
                     Upgrade
                   </button>
                 )
+              )}
+              {onInbox && (
+                <button
+                  type="button"
+                  onClick={onInbox}
+                  className="relative p-2.5 sm:p-3 bg-white border-2 border-black hover:bg-indigo-100 rounded-xl transition shadow-sm"
+                  title="Inbox"
+                >
+                  <Icon name="mail" size={22} className="text-gray-800" />
+                  {inboxCount > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                      {inboxCount > 9 ? '9+' : inboxCount}
+                    </span>
+                  )}
+                </button>
               )}
               {onSettings && (
                 <button

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="./icons/Lokr.png" />
+    <link rel="apple-touch-icon" href="./icons/Lokr.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LnkLokr - Your Link Manager Everywhere</title>
+    <meta name="description" content="Save, organize, and sync your links across all devices" />
+    <meta name="theme-color" content="#0ea5e9" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="LnkLokr" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <script type="module" crossorigin src="./main2.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/main.css">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      (function () {
+        var h = window.location.hash || '';
+        var s = window.location.search || '';
+        var isRecovery =
+          h.indexOf('type=recovery') !== -1 ||
+          h.indexOf('access_token') !== -1 ||
+          s.indexOf('type=recovery') !== -1 ||
+          (s.indexOf('code=') !== -1 && window.location.pathname.indexOf('reset') !== -1);
+        if (!isRecovery) return;
+        try {
+          sessionStorage.setItem('lnklokr_password_recovery', '1');
+        } catch (e) {}
+        if (window.location.pathname.indexOf('reset-password') === -1) {
+          window.location.replace('/reset-password' + s + h);
+        }
+      })();
+
+      (function () {
+        var h = window.location.hash || '';
+        if (h.indexOf('error=') === -1) return;
+        if (window.location.pathname.indexOf('reset-password') === -1) {
+          window.location.replace('/reset-password' + h);
+        }
+      })();
+    </script>
+  </body>
+</html>

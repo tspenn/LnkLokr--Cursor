@@ -12,10 +12,11 @@ import { SavedGallery } from './SavedGallery'
 import { ExportPanel } from './ExportPanel'
 import { BorrowView } from './BorrowView'
 import { ShareView } from './ShareView'
+import { InboxView } from './InboxView'
 import { Header } from '../shared/Header'
 import { Icon } from '../shared/Icon'
 
-type TabView = 'menu' | 'keep' | 'borrow' | 'share' | 'links' | 'images' | 'files' | 'pdfs' | 'bury'
+type TabView = 'menu' | 'keep' | 'borrow' | 'share' | 'inbox' | 'links' | 'images' | 'files' | 'pdfs' | 'bury'
 
 export function Dashboard() {
   const { user, signOut } = useAuth()
@@ -34,6 +35,7 @@ export function Dashboard() {
   const [buryPasswordInput, setBuryPasswordInput] = useState('')
   const [showBuryPasswordEntry, setShowBuryPasswordEntry] = useState(false)
   const [passwordError, setPasswordError] = useState('')
+  const [inboxCount, setInboxCount] = useState(0)
 
   useEffect(() => {
     if (!user) return
@@ -159,13 +161,17 @@ export function Dashboard() {
       <Header
         email={user?.email}
         isPremium={user?.is_premium}
+        inboxCount={inboxCount}
+        onInbox={() => setActiveTab('inbox')}
         onUpgrade={() => window.open(PURCHASE_URL, '_blank', 'noopener,noreferrer')}
         onSettings={() => setShowSettings(true)}
         onSignOut={signOut}
       />
 
       <main className="flex-1 bg-gradient-to-b from-white via-pink-50 to-pink-100 border-x-4 border-b-4 border-black relative overflow-auto">
-        {activeTab === 'share' ? (
+        {activeTab === 'inbox' ? (
+          <InboxView onBack={() => setActiveTab('menu')} onUnreadCountChange={setInboxCount} />
+        ) : activeTab === 'share' ? (
           <ShareView onBack={() => setActiveTab('menu')} />
         ) : activeTab === 'borrow' ? (
           <BorrowView onBack={() => setActiveTab('menu')} />
@@ -236,6 +242,22 @@ export function Dashboard() {
             >
               <span className="text-4xl">📋</span>
               Dream Keeper
+            </button>
+
+            <button
+              onClick={() => setActiveTab('inbox')}
+              className="w-full bg-indigo-200 border-4 border-black p-6 flex items-center justify-between text-3xl font-bold text-gray-900 hover:bg-indigo-300 transition shadow-lg hover:shadow-xl"
+              style={{ fontStyle: 'italic' }}
+            >
+              <span className="flex items-center gap-4">
+                <Icon name="mail" size={48} />
+                Inbox
+              </span>
+              {inboxCount > 0 && (
+                <span className="bg-red-500 text-white text-xl font-bold px-3 py-1 rounded-full">
+                  {inboxCount}
+                </span>
+              )}
             </button>
 
             <div className="flex justify-center pt-12 pb-8">
