@@ -16,11 +16,13 @@ export function SignUp({ onLoginClick }: SignUpProps) {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [validationError, setValidationError] = useState('')
+  const [isDuplicateEmail, setIsDuplicateEmail] = useState(false)
   const { signUp, error } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setValidationError('')
+    setIsDuplicateEmail(false)
 
     if (password !== confirmPassword) {
       setValidationError('Passwords do not match')
@@ -35,12 +37,22 @@ export function SignUp({ onLoginClick }: SignUpProps) {
     setIsLoading(true)
     try {
       await signUp(email, password)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message.toLowerCase() : ''
+      if (
+        msg.includes('already registered') ||
+        msg.includes('already exists') ||
+        msg.includes('already been registered') ||
+        msg.includes('duplicate key')
+      ) {
+        setIsDuplicateEmail(true)
+      }
     } finally {
       setIsLoading(false)
     }
   }
 
-  const displayError = validationError || error
+  const displayError = isDuplicateEmail ? null : (validationError || error)
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -50,7 +62,7 @@ export function SignUp({ onLoginClick }: SignUpProps) {
         <div className="w-full max-w-md bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-8 border-2 border-gray-200">
           <h2 className="text-2xl font-bold text-gray-900 mb-1 text-center">Create your Skyland Reach account</h2>
           <p className="text-sm text-gray-500 text-center mb-6">
-            One account for LnkLokr, FRIDAY Canvas, Go Shop &amp; more
+            One account for Secret Agent, FRIDAY Canvas, Go Shop, GoTRVL &amp; LnkLokr
           </p>
 
           <div className="mb-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
@@ -60,6 +72,22 @@ export function SignUp({ onLoginClick }: SignUpProps) {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {isDuplicateEmail && (
+              <div className="flex flex-col gap-2 p-3 bg-teal-50 border border-teal-300 rounded-lg text-teal-900 text-sm">
+                <div className="flex gap-2 items-start">
+                  <Icon name="info" size={16} className="flex-shrink-0 mt-0.5 text-teal-600" />
+                  <span>You already have a Skyland Reach account.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={onLoginClick}
+                  className="self-start ml-6 text-teal-700 hover:text-teal-900 font-medium underline"
+                >
+                  Switch to sign in →
+                </button>
+              </div>
+            )}
+
             {displayError && (
               <div className="flex gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
                 <Icon name="alert-circle" size={16} className="flex-shrink-0 mt-0.5" />
@@ -157,6 +185,7 @@ export function SignUp({ onLoginClick }: SignUpProps) {
               Sign in
             </button>
           </p>
+
         </div>
 
         <div className="absolute bottom-4 right-4 pointer-events-none z-0">

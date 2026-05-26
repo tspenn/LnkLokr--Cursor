@@ -54,7 +54,7 @@ export function Login({ onSignUpClick }: LoginProps) {
           </h2>
           {mode === 'signin' && (
             <p className="text-sm text-gray-500 text-center mb-6">
-              One Skyland Reach account for LnkLokr, FRIDAY Canvas, Go Shop &amp; more
+              One account for Secret Agent, FRIDAY Canvas, Go Shop, GoTRVL &amp; LnkLokr
             </p>
           )}
 
@@ -178,7 +178,7 @@ export function Login({ onSignUpClick }: LoginProps) {
                 onClick={onSignUpClick}
                 className="text-pink-600 hover:text-pink-700 font-medium underline"
               >
-                Sign up
+                Create one free
               </button>
             </p>
           )}
