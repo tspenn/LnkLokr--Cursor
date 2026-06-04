@@ -1,16 +1,29 @@
 import { useState } from 'react'
 import { AuthModal } from './AuthModal'
-import { TIERS, FREE_TIER, startCheckout } from '@/lib/premiumService'
+import { TIERS, FREE_TIER } from '@/lib/premiumService'
 
 export function LandingPage() {
   const [modal, setModal] = useState<'signin' | 'signup' | null>(null)
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
+  const [checkoutError, setCheckoutError] = useState<string | null>(null)
 
   const handleCheckout = async (tierId: 'solo-monthly' | 'pro-monthly') => {
     setCheckoutLoading(tierId)
+    setCheckoutError(null)
     try {
-      const url = await startCheckout(tierId)
-      if (url) window.location.href = url
+      const res = await fetch('/api/stripe/create-checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier: tierId }),
+      })
+      const data = await res.json() as { url?: string; error?: string }
+      if (!res.ok || data.error) {
+        setCheckoutError(data.error ?? 'Checkout failed. Please try again.')
+        return
+      }
+      if (data.url) window.location.href = data.url
+    } catch {
+      setCheckoutError('Unable to connect. Please check your internet connection.')
     } finally {
       setCheckoutLoading(null)
     }
@@ -125,6 +138,12 @@ export function LandingPage() {
             Pricing
           </p>
           <p className="text-center text-sm text-gray-500 mb-6">Start free. Upgrade when you're ready.</p>
+
+          {checkoutError && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 text-center">
+              {checkoutError}
+            </div>
+          )}
 
           <div className="space-y-4">
 
