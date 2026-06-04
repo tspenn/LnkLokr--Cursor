@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { AuthModal } from './AuthModal'
 import { TIERS, FREE_TIER } from '@/lib/premiumService'
 
@@ -6,6 +6,16 @@ export function LandingPage() {
   const [modal, setModal] = useState<'signin' | 'signup' | null>(null)
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
+  const [checkoutSuccess, setCheckoutSuccess] = useState(false)
+
+  // If returning from Stripe checkout, prompt unauthenticated users to create / sign in
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('checkout') === 'success') {
+      setCheckoutSuccess(true)
+      setModal('signup')
+    }
+  }, [])
 
   const handleCheckout = async (tierId: 'solo-monthly' | 'pro-monthly') => {
     setCheckoutLoading(tierId)
@@ -31,6 +41,13 @@ export function LandingPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-pink-50 via-purple-50 to-orange-50">
+
+      {/* ── Post-checkout success banner ────────────────────────── */}
+      {checkoutSuccess && (
+        <div className="bg-green-500 text-white text-center text-sm font-semibold py-3 px-4">
+          🎉 Payment successful! Create your account below to access your subscription.
+        </div>
+      )}
 
       {/* ── Header — same banner as the app ─────────────────────── */}
       <header className="border-b-4 border-black shadow-md shrink-0">

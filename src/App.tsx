@@ -27,6 +27,14 @@ function AppContent() {
     }
   }, [location.pathname, navigate])
 
+  // After Stripe checkout success, authenticated users go straight to the dashboard
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    if (params.get('checkout') === 'success' && isAuthenticated) {
+      navigate('/', { replace: true })
+    }
+  }, [location.search, isAuthenticated, navigate])
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-gradient-to-b from-cyan-100 via-pink-50 to-pink-200 gap-4">
