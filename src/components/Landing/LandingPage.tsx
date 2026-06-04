@@ -17,230 +17,213 @@ export function LandingPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-b from-white via-pink-50 to-pink-100">
+    <div className="min-h-screen flex flex-col bg-gradient-to-b from-pink-50 via-purple-50 to-orange-50">
 
-      {/* ── Header ─────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-30 bg-white border-b-4 border-black flex items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-3">
-          <img src="/icons/treasure_chest_transparent.png" alt="LnkLokr" className="w-10 h-10 object-contain" />
-          <span className="text-2xl font-black tracking-tight italic">LnkLokr</span>
-        </div>
-        <div className="flex items-center gap-2">
+      {/* ── Header — same banner as the app ─────────────────────── */}
+      <header className="border-b-4 border-black shadow-md shrink-0">
+        <div className="w-full min-h-[120px] flex items-center justify-center bg-gradient-to-r from-pink-200 via-purple-200 to-orange-200 px-4 py-4 relative">
+          <img
+            src="/header_lnklokr.png"
+            alt="LnkLokr"
+            className="h-24 w-auto max-w-[min(100%,480px)] object-contain"
+          />
+          {/* Subtle sign-in link top-right */}
           <button
             onClick={() => setModal('signin')}
-            className="text-sm font-bold px-4 py-2 border-4 border-black bg-white hover:bg-gray-100 transition"
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-600 hover:text-pink-600 transition bg-white/70 hover:bg-white px-3 py-1.5 rounded-full border border-gray-300 shadow-sm"
           >
-            Sign In
-          </button>
-          <button
-            onClick={() => setModal('signup')}
-            className="text-sm font-bold px-4 py-2 border-4 border-black bg-yellow-200 hover:bg-yellow-300 transition"
-            style={{ fontStyle: 'italic' }}
-          >
-            Try Free →
+            Sign in
           </button>
         </div>
       </header>
 
-      <main className="flex-1 border-x-4 border-black max-w-lg mx-auto w-full">
+      <main className="flex-1 max-w-lg mx-auto w-full border-x-4 border-black">
 
         {/* ── Hero ───────────────────────────────────────────────── */}
-        <section className="px-6 pt-10 pb-6 text-center border-b-4 border-black bg-gradient-to-b from-white via-pink-50 to-pink-100">
-          <h1 className="text-4xl font-black leading-tight mb-3 italic">
+        <section className="px-6 pt-10 pb-8 text-center border-b-4 border-black">
+          <p className="text-sm font-medium text-gray-500 tracking-widest uppercase mb-3">
+            Save the web your way
+          </p>
+          <h1 className="text-3xl font-bold leading-snug mb-3 text-gray-900">
             Save links<br />
-            <span className="text-pink-500">WITH&nbsp;IMAGES</span><br />
+            <span className="text-pink-500 font-extrabold">with images</span><br />
             on your phone.
           </h1>
-          <p className="text-base text-gray-700 mb-6 font-medium">
-            Keep · Borrow · Share · Bury<br />
-            <span className="text-sm text-gray-500">Your secret sauce for saving the web.</span>
+          <p className="text-sm text-gray-500 mb-8">
+            Keep · Borrow · Share · Bury — the full workflow, free forever.
           </p>
+
           <div className="flex flex-col gap-3">
             <button
               onClick={() => setModal('signup')}
-              className="w-full bg-yellow-200 border-4 border-black p-4 text-2xl font-black italic hover:bg-yellow-300 transition shadow-lg"
+              className="w-full py-3.5 px-6 rounded-full bg-gradient-to-r from-pink-400 to-orange-300 hover:from-pink-500 hover:to-orange-400 text-white font-semibold text-base transition shadow-md hover:shadow-lg border-2 border-pink-400"
             >
-              Open your LnkLokr — Free →
+              Try it free — no card needed
             </button>
             <button
               onClick={() => setModal('signin')}
-              className="w-full bg-white border-4 border-black p-3 text-lg font-bold hover:bg-gray-50 transition"
+              className="w-full py-3 px-6 rounded-full bg-white hover:bg-gray-50 text-gray-700 font-medium text-sm transition border-2 border-gray-300 shadow-sm"
             >
-              Already have an account? Sign In
+              Already have an account? Sign in →
             </button>
           </div>
         </section>
 
-        {/* ── Workflow buttons (mirrors the dashboard) ────────────── */}
-        <section className="border-b-4 border-black">
-          <p className="text-center text-xs font-bold uppercase tracking-widest text-gray-500 pt-5 pb-3 px-4">
+        {/* ── Workflow preview ────────────────────────────────────── */}
+        <section className="border-b-4 border-black px-5 py-7 bg-white/60">
+          <p className="text-xs font-semibold text-gray-400 tracking-widest uppercase text-center mb-5">
             The full workflow — all tiers
           </p>
 
-          <div className="px-4 pb-6 space-y-3">
-            <div className="w-full bg-yellow-100 border-4 border-black p-5 flex items-center gap-4">
-              <img src="/icons/treasure_chest_transparent.png" alt="Keep" className="w-10 h-10 object-contain" />
-              <div className="text-left">
-                <p className="text-2xl font-black italic">Keep</p>
-                <p className="text-sm text-gray-600">Save links + images forever</p>
-              </div>
-            </div>
-
-            <div className="w-full bg-purple-200 border-4 border-black p-5 flex items-center gap-4">
-              <img src="/icons/basket.png" alt="Borrow" className="w-10 h-10 object-contain" />
-              <div className="text-left">
-                <p className="text-2xl font-black italic">Borrow</p>
-                <p className="text-sm text-gray-600">Not sure yet? Park it here</p>
-              </div>
-            </div>
-
-            <div className="w-full bg-pink-300 border-4 border-black p-5 flex items-center gap-4">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
-                <rect x="7" y="11" width="10" height="9" rx="1" stroke="#000" strokeWidth="2"/>
-                <path d="M8 11V8C8 5.79086 9.79086 4 12 4C14.2091 4 16 5.79086 16 8V9" stroke="#000" strokeWidth="2"/>
-              </svg>
-              <div className="text-left">
-                <p className="text-2xl font-black italic">Share</p>
-                <p className="text-sm text-gray-600">Stage and send to anyone</p>
-              </div>
-            </div>
-
-            <div className="w-full bg-cyan-200 border-4 border-black p-5 flex items-center gap-4">
-              <img src="/icons/combination_lock.png" alt="Bury" className="w-10 h-10 object-contain" />
-              <div className="text-left">
-                <p className="text-2xl font-black italic">Bury</p>
-                <p className="text-sm text-gray-600">Private vault, password-protected</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ── Why LnkLokr ────────────────────────────────────────── */}
-        <section className="border-b-4 border-black px-4 py-6 bg-amber-50">
-          <p className="text-center font-black text-xl italic mb-4">No one else does this.</p>
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {[
-              { bg: 'bg-white', label: '🖼️  Links + Images', body: 'Pocket saves text. LnkLokr saves the image too — so you remember what it was.' },
-              { bg: 'bg-white', label: '📱  Built for mobile', body: 'Installs as a PWA on iPhone, iPad, or Android. No app store needed.' },
-              { bg: 'bg-white', label: '🔒  Truly private', body: 'Bury items behind a password. Your data is never sold.' },
-              { bg: 'bg-white', label: '🧩  Chrome extension (Pro)', body: 'Save from any webpage in one click. Desktop + mobile, everything in sync.' },
-            ].map(({ bg, label, body }) => (
-              <div key={label} className={`${bg} border-4 border-black p-4`}>
-                <p className="font-bold text-gray-900 mb-1">{label}</p>
-                <p className="text-sm text-gray-600">{body}</p>
+              { bg: 'bg-yellow-100', border: 'border-yellow-300', icon: '/icons/treasure_chest_transparent.png', img: true, label: 'Keep', desc: 'Save links + images forever' },
+              { bg: 'bg-purple-100', border: 'border-purple-300', icon: '/icons/basket.png', img: true, label: 'Borrow', desc: 'Not sure yet? Park it here' },
+              { bg: 'bg-pink-100', border: 'border-pink-300', icon: null, emoji: '📤', label: 'Share', desc: 'Stage and send to anyone' },
+              { bg: 'bg-cyan-100', border: 'border-cyan-300', icon: '/icons/combination_lock.png', img: true, label: 'Bury', desc: 'Private vault, password-protected' },
+            ].map(({ bg, border, icon, img, emoji, label, desc }) => (
+              <div key={label} className={`${bg} border-2 ${border} rounded-xl px-4 py-3.5 flex items-center gap-4`}>
+                {img && icon
+                  ? <img src={icon} alt={label} className="w-8 h-8 object-contain flex-shrink-0" />
+                  : <span className="text-2xl flex-shrink-0">{emoji}</span>
+                }
+                <div>
+                  <p className="font-bold text-gray-900">{label}</p>
+                  <p className="text-xs text-gray-500">{desc}</p>
+                </div>
               </div>
             ))}
           </div>
         </section>
 
-        {/* ── Pricing ────────────────────────────────────────────── */}
-        <section className="border-b-4 border-black px-4 py-6" id="pricing">
-          <p className="text-center font-black text-xl italic mb-1">Simple pricing</p>
-          <p className="text-center text-sm text-gray-500 mb-5">Start free. Upgrade when you're ready.</p>
+        {/* ── Why LnkLokr ─────────────────────────────────────────── */}
+        <section className="border-b-4 border-black px-5 py-7 bg-amber-50/60">
+          <p className="text-xs font-semibold text-gray-400 tracking-widest uppercase text-center mb-5">
+            Why LnkLokr
+          </p>
+          <div className="space-y-3">
+            {[
+              { emoji: '🖼️', label: 'Links + images', body: 'Other apps save the URL. LnkLokr saves the image too — so you remember what it was.' },
+              { emoji: '📱', label: 'Built for mobile', body: 'Installs as a PWA on iPhone, iPad, or Android. No app store needed.' },
+              { emoji: '🔒', label: 'Truly private', body: 'Bury items behind a password. Your data is never sold.' },
+              { emoji: '🧩', label: 'Chrome extension', body: 'Pro tier adds one-click saving from any webpage on your desktop.' },
+            ].map(({ emoji, label, body }) => (
+              <div key={label} className="flex gap-3 items-start p-3 bg-white/80 rounded-xl border border-gray-200">
+                <span className="text-2xl flex-shrink-0 mt-0.5">{emoji}</span>
+                <div>
+                  <p className="font-semibold text-gray-900 text-sm">{label}</p>
+                  <p className="text-xs text-gray-500 leading-relaxed mt-0.5">{body}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ── Pricing ─────────────────────────────────────────────── */}
+        <section className="border-b-4 border-black px-5 py-7" id="pricing">
+          <p className="text-xs font-semibold text-gray-400 tracking-widest uppercase text-center mb-1">
+            Pricing
+          </p>
+          <p className="text-center text-sm text-gray-500 mb-6">Start free. Upgrade when you're ready.</p>
 
           <div className="space-y-4">
 
             {/* Free */}
-            <div className="border-4 border-black p-5 bg-white">
+            <div className="border-2 border-gray-200 rounded-2xl p-5 bg-white">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-2xl font-black italic">Free</p>
-                <p className="text-2xl font-black">$0</p>
+                <p className="text-lg font-bold text-gray-900">Free</p>
+                <p className="text-xl font-bold text-gray-700">$0</p>
               </div>
-              <ul className="space-y-1.5 text-sm text-gray-700 mb-4">
+              <ul className="space-y-1.5 text-xs text-gray-600 mb-4">
                 {FREE_TIER.features.map(f => (
-                  <li key={f} className="flex gap-2"><span className="text-green-600 font-bold">✓</span>{f}</li>
+                  <li key={f} className="flex gap-2"><span className="text-green-500">✓</span>{f}</li>
                 ))}
               </ul>
               <button
                 onClick={() => setModal('signup')}
-                className="w-full border-4 border-black py-3 font-bold text-lg bg-white hover:bg-gray-50 transition"
+                className="w-full py-2.5 rounded-full border-2 border-gray-300 bg-white hover:bg-gray-50 text-gray-700 font-medium text-sm transition"
               >
                 Get started free
               </button>
             </div>
 
             {/* Solo */}
-            <div className="border-4 border-pink-500 p-5 bg-pink-50 relative">
-              <div className="absolute -top-3 left-4 bg-pink-500 text-white text-xs font-black px-3 py-0.5 border-2 border-black">
-                MOST POPULAR
+            <div className="border-2 border-pink-300 rounded-2xl p-5 bg-pink-50 relative">
+              <div className="absolute -top-2.5 left-5 bg-pink-400 text-white text-xs font-semibold px-3 py-0.5 rounded-full">
+                Most popular
               </div>
               <div className="flex items-center justify-between mb-1">
-                <p className="text-2xl font-black italic">Solo</p>
-                <p className="text-2xl font-black">$2.99<span className="text-sm font-normal"> / mo</span></p>
+                <p className="text-lg font-bold text-gray-900">Solo</p>
+                <p className="text-xl font-bold text-gray-700">$2.99<span className="text-xs font-normal text-gray-500"> / mo</span></p>
               </div>
-              <p className="text-xs text-amber-600 font-bold mb-3">or $24.99 / yr — save $11</p>
-              <ul className="space-y-1.5 text-sm text-gray-700 mb-4">
+              <p className="text-xs text-amber-600 font-medium mb-3">or $24.99 / yr — save $11</p>
+              <ul className="space-y-1.5 text-xs text-gray-600 mb-4">
                 {TIERS['solo-monthly'].features.map(f => (
-                  <li key={f} className="flex gap-2"><span className="text-pink-500 font-bold">✓</span>{f}</li>
+                  <li key={f} className="flex gap-2"><span className="text-pink-400">✓</span>{f}</li>
                 ))}
               </ul>
               <button
                 onClick={() => handleCheckout('solo-monthly')}
                 disabled={checkoutLoading !== null}
-                className="w-full border-4 border-black py-3 font-black text-lg bg-pink-300 hover:bg-pink-400 disabled:opacity-60 transition italic"
+                className="w-full py-2.5 rounded-full bg-gradient-to-r from-pink-400 to-orange-300 hover:from-pink-500 hover:to-orange-400 disabled:opacity-60 text-white font-semibold text-sm transition shadow-sm border-2 border-pink-400"
               >
-                {checkoutLoading === 'solo-monthly' ? 'Starting…' : 'Subscribe — $2.99 / mo →'}
+                {checkoutLoading === 'solo-monthly' ? 'Starting…' : 'Subscribe · $2.99 / mo'}
               </button>
             </div>
 
             {/* Pro */}
-            <div className="border-4 border-indigo-500 p-5 bg-indigo-50">
+            <div className="border-2 border-indigo-200 rounded-2xl p-5 bg-indigo-50">
               <div className="flex items-center justify-between mb-1">
-                <p className="text-2xl font-black italic">Pro</p>
-                <p className="text-2xl font-black">$5.99<span className="text-sm font-normal"> / mo</span></p>
+                <p className="text-lg font-bold text-gray-900">Pro</p>
+                <p className="text-xl font-bold text-gray-700">$5.99<span className="text-xs font-normal text-gray-500"> / mo</span></p>
               </div>
-              <p className="text-xs text-amber-600 font-bold mb-3">or $49.99 / yr — save $22</p>
-              <ul className="space-y-1.5 text-sm text-gray-700 mb-4">
+              <p className="text-xs text-amber-600 font-medium mb-3">or $49.99 / yr — save $22</p>
+              <ul className="space-y-1.5 text-xs text-gray-600 mb-4">
                 {TIERS['pro-monthly'].features.map(f => (
-                  <li key={f} className="flex gap-2"><span className="text-indigo-500 font-bold">✓</span>{f}</li>
+                  <li key={f} className="flex gap-2"><span className="text-indigo-400">✓</span>{f}</li>
                 ))}
               </ul>
               <button
                 onClick={() => handleCheckout('pro-monthly')}
                 disabled={checkoutLoading !== null}
-                className="w-full border-4 border-black py-3 font-black text-lg bg-cyan-200 hover:bg-cyan-300 disabled:opacity-60 transition italic"
+                className="w-full py-2.5 rounded-full bg-gradient-to-r from-indigo-400 to-purple-400 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-60 text-white font-semibold text-sm transition shadow-sm border-2 border-indigo-400"
               >
-                {checkoutLoading === 'pro-monthly' ? 'Starting…' : 'Subscribe — $5.99 / mo →'}
+                {checkoutLoading === 'pro-monthly' ? 'Starting…' : 'Subscribe · $5.99 / mo'}
               </button>
             </div>
           </div>
         </section>
 
-        {/* ── Final CTA ──────────────────────────────────────────── */}
-        <section className="border-b-4 border-black px-4 py-10 text-center bg-yellow-100">
+        {/* ── Gentle final CTA ────────────────────────────────────── */}
+        <section className="px-6 py-12 text-center border-b-4 border-black bg-gradient-to-b from-pink-50 to-purple-50">
           <img
             src="/icons/treasure_chest_transparent.png"
             alt="Treasure Chest"
-            className="w-28 h-28 object-contain mx-auto mb-4 drop-shadow-xl"
+            className="w-20 h-20 object-contain mx-auto mb-4 drop-shadow-md opacity-90"
           />
-          <p className="text-3xl font-black italic mb-2">Your treasure chest awaits.</p>
-          <p className="text-sm text-gray-600 mb-6">Free forever. No credit card needed.</p>
+          <p className="text-xl font-semibold text-gray-800 mb-1">Your treasure chest awaits.</p>
+          <p className="text-sm text-gray-500 mb-6">Free forever. No credit card needed.</p>
           <button
             onClick={() => setModal('signup')}
-            className="w-full bg-yellow-200 border-4 border-black p-4 text-2xl font-black italic hover:bg-yellow-300 transition shadow-lg"
+            className="px-8 py-3 rounded-full bg-gradient-to-r from-pink-400 to-orange-300 hover:from-pink-500 hover:to-orange-400 text-white font-semibold text-sm transition shadow-md border-2 border-pink-400"
           >
             Open your LnkLokr →
           </button>
         </section>
       </main>
 
-      {/* ── Footer ─────────────────────────────────────────────── */}
-      <footer className="border-t-4 border-black px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-500 bg-white max-w-lg mx-auto w-full border-x-4">
-        <div className="flex items-center gap-2 font-bold text-gray-700">
-          <img src="/icons/treasure_chest_transparent.png" alt="" className="w-5 h-5 object-contain" />
-          LnkLokr · A Skyland Reach app
-        </div>
-        <p className="text-gray-400 text-center">Cancel at any time · Your data is yours · Never sold</p>
+      {/* ── Footer ──────────────────────────────────────────────── */}
+      <footer className="border-t-4 border-black px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-400 bg-white max-w-lg mx-auto w-full border-x-4">
+        <span className="font-medium text-gray-500">LnkLokr · A Skyland Reach app</span>
+        <span className="text-center">Cancel at any time · Your data is yours · Never sold</span>
         <div className="flex gap-4">
-          <button onClick={() => setModal('signin')} className="hover:text-pink-600 underline">Sign In</button>
-          <button onClick={() => setModal('signup')} className="hover:text-pink-600 underline">Sign Up</button>
-          <a href="#pricing" className="hover:text-pink-600 underline">Pricing</a>
+          <button onClick={() => setModal('signin')} className="hover:text-pink-500 underline">Sign in</button>
+          <button onClick={() => setModal('signup')} className="hover:text-pink-500 underline">Sign up</button>
+          <a href="#pricing" className="hover:text-pink-500 underline">Pricing</a>
         </div>
       </footer>
 
-      {modal && (
-        <AuthModal initialMode={modal} onClose={() => setModal(null)} />
-      )}
+      {modal && <AuthModal initialMode={modal} onClose={() => setModal(null)} />}
     </div>
   )
 }
