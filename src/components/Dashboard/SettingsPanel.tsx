@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { localStore } from '@/lib/localStore'
-import { premiumService, TIERS, type TierId } from '@/lib/premiumService'
+import { TIERS, startCheckout, openBillingPortal, resolveTierKey, type TierId } from '@/lib/premiumService'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/context/AuthContext'
 import { Icon } from '../shared/Icon'
@@ -13,24 +13,19 @@ interface SettingsPanelProps {
 export function SettingsPanel({ onClose, onExportClick }: SettingsPanelProps) {
   const { user } = useAuth()
   const [isPremium, setIsPremium] = useState(false)
-  const [cloudSyncEnabled, setCloudSyncEnabled] = useState(false)
-  const [activationKey, setActivationKey] = useState('')
-  const [activating, setActivating] = useState(false)
   const [stats, setStats] = useState({ total_links: 0, total_folders: 0, total_images: 0, storage_used_mb: 0 })
   const [newBuryPassword, setNewBuryPassword] = useState('')
   const [confirmBuryPassword, setConfirmBuryPassword] = useState('')
   const [savingPassword, setSavingPassword] = useState(false)
   const [hasBuryPassword, setHasBuryPassword] = useState(false)
   const [checkoutLoading, setCheckoutLoading] = useState<TierId | null>(null)
+  const [portalLoading, setPortalLoading] = useState(false)
+  const tierKey = resolveTierKey(isPremium, user?.subscription_tier)
 
   useEffect(() => {
     const loadStatus = async () => {
-      const [status, storageStats] = await Promise.all([
-        premiumService.getStatus(),
-        localStore.getStats(),
-      ])
-      setIsPremium(status.isPremium)
-      setCloudSyncEnabled(status.cloudSyncEnabled)
+      const storageStats = await localStore.getStats()
+      setIsPremium(user?.is_premium ?? false)
       setStats(storageStats)
 
       if (user) {
@@ -51,7 +46,7 @@ export function SettingsPanel({ onClose, onExportClick }: SettingsPanelProps) {
   const handleCheckout = async (tier: TierId) => {
     setCheckoutLoading(tier)
     try {
-      const url = await premiumService.startCheckout(tier, user?.email)
+      const url = await startCheckout(tier, user?.email)
       if (url) {
         window.location.href = url
       } else {
@@ -62,35 +57,13 @@ export function SettingsPanel({ onClose, onExportClick }: SettingsPanelProps) {
     }
   }
 
-  const handleActivate = async () => {
-    if (!activationKey.trim()) return
-
-    setActivating(true)
-    const success = await premiumService.activatePremium(activationKey)
-    setActivating(false)
-
-    if (success) {
-      setIsPremium(true)
-      setActivationKey('')
-      alert('LokBx Premium activated successfully!')
-      window.location.reload()
-    } else {
-      alert('Invalid activation key. Please check and try again.')
-    }
-  }
-
-  const handleToggleCloudSync = async () => {
-    const newState = !cloudSyncEnabled
-    const success = await premiumService.toggleCloudSync(newState)
-
-    if (success) {
-      setCloudSyncEnabled(newState)
-      if (newState) {
-        alert('LokBx sync enabled! Your data will now sync to the cloud.')
-      } else {
-        alert('LokBx sync disabled. Your data will remain local only.')
-      }
-      window.location.reload()
+  const handleManageSubscription = async () => {
+    if (!user?.email) return
+    setPortalLoading(true)
+    try {
+      await openBillingPortal(user.email)
+    } finally {
+      setPortalLoading(false)
     }
   }
 
@@ -190,99 +163,55 @@ export function SettingsPanel({ onClose, onExportClick }: SettingsPanelProps) {
             </div>
           </div>
 
-          {!isPremium ? (
-            <div className="p-4 bg-gradient-to-br from-blue-50 to-cyan-50 border-2 border-blue-200 rounded-lg">
-              <div className="flex items-center gap-2 mb-3">
+          {/* ── Subscription / upgrade section ── */}
+          {tierKey === 'free' ? (
+            <div className="p-4 bg-gradient-to-br from-pink-50 to-orange-50 border-2 border-pink-200 rounded-lg space-y-3">
+              <div className="flex items-center gap-2">
                 <Icon name="crown" size={20} />
-                <h3 className="font-semibold text-blue-900">Upgrade LnkLokr</h3>
+                <h3 className="font-semibold text-pink-900">Upgrade LnkLokr</h3>
               </div>
-              <p className="text-sm text-blue-800 mb-4">
-                One-time licenses for the desktop / mobile app, plus the optional LokBx Cloud subscription for cross-device sync and backup.
-              </p>
 
-              <div className="space-y-3">
-                <div>
-                  <p className="text-xs uppercase font-bold tracking-wide text-blue-700 mb-2">
-                    App License (one-time)
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {(['one-device', 'five-device'] as const).map(tierId => {
-                      const t = TIERS[tierId]
-                      const loading = checkoutLoading === tierId
-                      return (
-                        <button
-                          key={tierId}
-                          onClick={() => handleCheckout(tierId)}
-                          disabled={loading}
-                          className="text-left p-3 border-2 border-blue-300 hover:border-blue-500 bg-white rounded-lg transition disabled:opacity-60"
-                        >
-                          <p className="text-sm font-bold text-gray-900">{t.name}</p>
-                          <p className="text-xs text-gray-600 mt-0.5">{t.description}</p>
-                          <p className="text-base font-bold text-blue-700 mt-1">
-                            {loading ? 'Starting…' : t.priceLabel}
-                          </p>
-                        </button>
-                      )
-                    })}
-                  </div>
+              {/* Solo */}
+              <div className="bg-white border-2 border-pink-200 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="font-bold text-gray-900">Solo</p>
+                  <span className="text-xs bg-pink-100 text-pink-700 px-2 py-0.5 rounded-full font-medium">Mobile</span>
                 </div>
-
-                <div>
-                  <p className="text-xs uppercase font-bold tracking-wide text-blue-700 mb-2">
-                    LokBx Cloud Storage (subscription)
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {(['cloud-monthly', 'cloud-yearly'] as const).map(tierId => {
-                      const t = TIERS[tierId]
-                      const loading = checkoutLoading === tierId
-                      const isYearly = tierId === 'cloud-yearly'
-                      return (
-                        <button
-                          key={tierId}
-                          onClick={() => handleCheckout(tierId)}
-                          disabled={loading}
-                          className={`text-left p-3 border-2 rounded-lg transition disabled:opacity-60 ${
-                            isYearly
-                              ? 'border-amber-400 bg-amber-50 hover:border-amber-500'
-                              : 'border-blue-300 bg-white hover:border-blue-500'
-                          }`}
-                        >
-                          <p className="text-sm font-bold text-gray-900">{t.name}</p>
-                          <p className="text-xs text-gray-600 mt-0.5">{t.description}</p>
-                          <p
-                            className={`text-base font-bold mt-1 ${
-                              isYearly ? 'text-amber-700' : 'text-blue-700'
-                            }`}
-                          >
-                            {loading ? 'Starting…' : t.priceLabel}
-                          </p>
-                        </button>
-                      )
-                    })}
-                  </div>
+                <p className="text-xs text-gray-600 mb-2">All mobile devices · 2 GB cloud · No ads</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['solo-monthly', 'solo-yearly'] as const).map(id => {
+                    const t = TIERS[id]
+                    return (
+                      <button key={id} onClick={() => handleCheckout(id)} disabled={checkoutLoading !== null}
+                        className={`text-left p-2 border-2 rounded-lg transition disabled:opacity-60 ${id === 'solo-yearly' ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-white hover:border-pink-400'}`}>
+                        <p className="text-sm font-bold text-gray-900">{checkoutLoading === id ? 'Starting…' : t.priceLabel}</p>
+                        {t.annualSavings && <p className="text-xs text-amber-600 font-medium">{t.annualSavings}</p>}
+                        {t.yearlyEquivalent && <p className="text-xs text-gray-500">{t.yearlyEquivalent}</p>}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
 
-              <div className="pt-4 mt-4 border-t border-blue-200">
-                <p className="text-xs text-blue-700 mb-2 font-medium flex items-center gap-1">
-                  <Icon name="key" size={14} />
-                  Already purchased? Activate here:
-                </p>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={activationKey}
-                    onChange={(e) => setActivationKey(e.target.value)}
-                    placeholder="Enter activation key"
-                    className="flex-1 px-3 py-2 border border-blue-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  <button
-                    onClick={handleActivate}
-                    disabled={activating || !activationKey.trim()}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {activating ? 'Activating...' : 'Activate'}
-                  </button>
+              {/* Pro */}
+              <div className="bg-white border-2 border-indigo-200 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="font-bold text-gray-900">Pro</p>
+                  <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-medium">All devices + Extension</span>
+                </div>
+                <p className="text-xs text-gray-600 mb-2">PC · Mac · Chromebook · Chrome extension · 10 GB cloud</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['pro-monthly', 'pro-yearly'] as const).map(id => {
+                    const t = TIERS[id]
+                    return (
+                      <button key={id} onClick={() => handleCheckout(id)} disabled={checkoutLoading !== null}
+                        className={`text-left p-2 border-2 rounded-lg transition disabled:opacity-60 ${id === 'pro-yearly' ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-white hover:border-indigo-400'}`}>
+                        <p className="text-sm font-bold text-gray-900">{checkoutLoading === id ? 'Starting…' : t.priceLabel}</p>
+                        {t.annualSavings && <p className="text-xs text-amber-600 font-medium">{t.annualSavings}</p>}
+                        {t.yearlyEquivalent && <p className="text-xs text-gray-500">{t.yearlyEquivalent}</p>}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
             </div>
@@ -290,33 +219,23 @@ export function SettingsPanel({ onClose, onExportClick }: SettingsPanelProps) {
             <div className="p-4 bg-gradient-to-br from-amber-50 to-yellow-50 border-2 border-amber-200 rounded-lg">
               <div className="flex items-center gap-2 mb-3">
                 <Icon name="crown" size={20} />
-                <h3 className="font-semibold text-amber-900">LokBx Premium Active</h3>
+                <h3 className="font-semibold text-amber-900">
+                  LnkLokr {tierKey === 'pro' ? 'Pro' : 'Solo'} — Active
+                </h3>
               </div>
-
-              <div className="flex items-center justify-between p-3 bg-white rounded-lg mb-3">
-                <div className="flex items-center gap-2">
-                  <Icon name="cloud" size={18} className="text-blue-600" />
-                  <span className="text-sm font-medium text-gray-900">LokBx Sync</span>
-                </div>
-                <button
-                  onClick={handleToggleCloudSync}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
-                    cloudSyncEnabled ? 'bg-blue-600' : 'bg-gray-300'
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
-                      cloudSyncEnabled ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-              </div>
-
-              <p className="text-xs text-amber-800">
-                {cloudSyncEnabled
-                  ? 'Your data is syncing to LokBx cloud automatically.'
-                  : 'Enable LokBx sync to backup your data and sync across devices.'}
+              <p className="text-xs text-amber-800 mb-3">
+                {tierKey === 'pro'
+                  ? 'All devices · Chrome extension · 10 GB cloud storage'
+                  : 'All mobile devices · 2 GB cloud storage · No ads'}
               </p>
+              <button
+                onClick={handleManageSubscription}
+                disabled={portalLoading}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border-2 border-amber-300 hover:bg-amber-50 text-amber-900 rounded-lg text-sm font-medium transition disabled:opacity-50"
+              >
+                <Icon name="settings" size={16} />
+                {portalLoading ? 'Opening…' : 'Manage subscription'}
+              </button>
             </div>
           )}
 
@@ -418,7 +337,8 @@ export function SettingsPanel({ onClose, onExportClick }: SettingsPanelProps) {
             <h3 className="text-sm font-semibold text-gray-900 mb-3">About</h3>
             <div className="space-y-2 text-sm text-gray-600">
               <p>LnkLokr v2.0.0</p>
-              <p>Local-first bookmark manager with optional LokBx cloud sync</p>
+              <p>Save links with images. Keep · Borrow · Share · Bury.</p>
+              <p className="text-xs text-gray-400 mt-1">Cancel at any time · Your data is yours · Never sold</p>
             </div>
           </div>
         </div>

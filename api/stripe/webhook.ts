@@ -5,53 +5,28 @@ import { createClient } from '@supabase/supabase-js'
 /**
  * POST /api/stripe/webhook
  *
- * Verifies the Stripe webhook signature, then updates the `users` row in
- * Supabase based on the tier purchased:
- *
- *   - one-device / five-device  → one-time payment, sets `is_premium = true`
- *                                 and bumps `device_limit` (1 or 5).
- *   - cloud-monthly / cloud-yearly → recurring subscription, toggles
- *                                 `is_premium`, `cloud_sync` and
- *                                 `premium_until` based on subscription state.
+ * Verifies the Stripe webhook signature, then:
+ *   1. Upserts a row in user_subscriptions (app_key = 'lnklokr') — source of truth
+ *   2. Updates users.is_premium / subscription_tier — used by in-app gate checks
  *
  * Required Vercel env vars:
- *   - STRIPE_SECRET_KEY
- *   - STRIPE_WEBHOOK_SECRET
- *   - VITE_SUPABASE_URL (or SUPABASE_URL)
- *   - SUPABASE_SERVICE_ROLE_KEY
+ *   STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET,
+ *   VITE_SUPABASE_URL (or SUPABASE_URL), SUPABASE_SERVICE_ROLE_KEY
  *
- * Configure the endpoint in the Stripe Dashboard:
- *   https://dashboard.stripe.com/webhooks → Add endpoint
- *   URL: https://<your-app>.vercel.app/api/stripe/webhook
- *   Events: checkout.session.completed,
- *           customer.subscription.created,
- *           customer.subscription.updated,
- *           customer.subscription.deleted
+ * Stripe Dashboard → Webhooks → events to enable:
+ *   checkout.session.completed
+ *   customer.subscription.created
+ *   customer.subscription.updated
+ *   customer.subscription.deleted
  */
 
-// Stripe needs the raw body to verify signatures. Tell Vercel not to parse.
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-}
+export const config = { api: { bodyParser: false } }
 
-type TierId = 'one-device' | 'five-device' | 'cloud-monthly' | 'cloud-yearly'
+type TierKey = 'solo' | 'pro'
+const VALID_TIER_KEYS = new Set<TierKey>(['solo', 'pro'])
 
-const DEVICE_LIMITS: Partial<Record<TierId, number>> = {
-  'one-device': 1,
-  'five-device': 5,
-}
-
-const CLOUD_TIERS = new Set<TierId>(['cloud-monthly', 'cloud-yearly'])
-
-function isTier(value: unknown): value is TierId {
-  return (
-    value === 'one-device' ||
-    value === 'five-device' ||
-    value === 'cloud-monthly' ||
-    value === 'cloud-yearly'
-  )
+function isTierKey(v: unknown): v is TierKey {
+  return typeof v === 'string' && VALID_TIER_KEYS.has(v as TierKey)
 }
 
 async function readRawBody(req: VercelRequest): Promise<Buffer> {
@@ -74,19 +49,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-  if (!stripeSecret || !webhookSecret) {
-    return res.status(500).send('Stripe webhook is not configured')
-  }
-  if (!supabaseUrl || !serviceRoleKey) {
-    return res.status(500).send('Supabase service role is not configured')
-  }
+  if (!stripeSecret || !webhookSecret) return res.status(500).send('Stripe webhook is not configured')
+  if (!supabaseUrl || !serviceRoleKey) return res.status(500).send('Supabase service role is not configured')
 
   const stripe = new Stripe(stripeSecret, { apiVersion: '2024-06-20' })
   const signature = req.headers['stripe-signature']
 
-  if (!signature || Array.isArray(signature)) {
-    return res.status(400).send('Missing stripe-signature header')
-  }
+  if (!signature || Array.isArray(signature)) return res.status(400).send('Missing stripe-signature header')
 
   let event: Stripe.Event
   try {
@@ -102,50 +71,70 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     auth: { persistSession: false, autoRefreshToken: false },
   })
 
+  /** Look up the internal user id by email via the users table. */
+  async function getUserIdByEmail(email: string): Promise<string | null> {
+    const { data } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .maybeSingle()
+    return data?.id ?? null
+  }
+
+  /** Look up user id by stripe_customer_id. */
+  async function getUserIdByCustomer(customerId: string): Promise<string | null> {
+    const { data } = await supabase
+      .from('users')
+      .select('id')
+      .eq('stripe_customer_id', customerId)
+      .maybeSingle()
+    return data?.id ?? null
+  }
+
   try {
     switch (event.type) {
+
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session
         const email = session.customer_details?.email || session.customer_email
-        const tier = isTier(session.metadata?.tier) ? (session.metadata!.tier as TierId) : null
+        const tierKey = isTierKey(session.metadata?.tier_key) ? session.metadata!.tier_key as TierKey : null
+        const billingCycle = session.metadata?.billing_cycle ?? null
         const customerId = typeof session.customer === 'string' ? session.customer : null
+        const subId = typeof session.subscription === 'string' ? session.subscription : null
+        const priceId = session.metadata?.stripe_price_id ?? null
 
         if (!email) break
 
-        if (tier && DEVICE_LIMITS[tier]) {
-          // One-time purchase (One Device / 5-Device pack).
+        const userId = await getUserIdByEmail(email)
+
+        // 1. Update users table (in-app gate)
+        await supabase
+          .from('users')
+          .update({
+            is_premium: true,
+            subscription_tier: tierKey ?? 'premium',
+            stripe_customer_id: customerId,
+          })
+          .eq('email', email)
+
+        // 2. Upsert user_subscriptions (standard)
+        if (userId) {
           await supabase
-            .from('users')
-            .update({
-              is_premium: true,
-              subscription_tier: 'premium',
-              device_limit: DEVICE_LIMITS[tier],
-              stripe_customer_id: customerId,
-              last_purchase_tier: tier,
-            })
-            .eq('email', email)
-        } else if (tier && CLOUD_TIERS.has(tier)) {
-          // Cloud subscription kicked off — flip premium + cloud sync.
-          await supabase
-            .from('users')
-            .update({
-              is_premium: true,
-              subscription_tier: 'premium',
-              cloud_sync: true,
-              stripe_customer_id: customerId,
-              last_purchase_tier: tier,
-            })
-            .eq('email', email)
-        } else {
-          // Fallback: treat any successful checkout as premium.
-          await supabase
-            .from('users')
-            .update({
-              is_premium: true,
-              subscription_tier: 'premium',
-              stripe_customer_id: customerId,
-            })
-            .eq('email', email)
+            .from('user_subscriptions')
+            .upsert(
+              {
+                user_id: userId,
+                app_key: 'lnklokr',
+                plan_name: tierKey ? (tierKey === 'pro' ? 'LnkLokr Pro' : 'LnkLokr Solo') : 'LnkLokr Solo',
+                status: 'active',
+                billing_cycle: billingCycle,
+                stripe_customer_id: customerId,
+                stripe_subscription_id: subId,
+                stripe_price_id: priceId,
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: 'user_id,app_key' },
+            )
         }
         break
       }
@@ -155,35 +144,70 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const sub = event.data.object as Stripe.Subscription
         const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id
         const isActive = ['active', 'trialing', 'past_due'].includes(sub.status)
-        const tier = isTier(sub.metadata?.tier) ? (sub.metadata!.tier as TierId) : null
+        const tierKey = isTierKey(sub.metadata?.tier_key) ? sub.metadata!.tier_key as TierKey : null
+        const billingCycle = sub.metadata?.billing_cycle ?? null
+        const priceId = sub.items.data[0]?.price?.id ?? null
 
+        // 1. Update users table
         await supabase
           .from('users')
           .update({
             is_premium: isActive,
-            subscription_tier: isActive ? 'premium' : 'free',
-            cloud_sync: isActive && (!tier || CLOUD_TIERS.has(tier)),
+            subscription_tier: isActive ? (tierKey ?? 'premium') : 'free',
             premium_until: sub.current_period_end
               ? new Date(sub.current_period_end * 1000).toISOString()
               : null,
-            last_purchase_tier: tier,
           })
           .eq('stripe_customer_id', customerId)
+
+        // 2. Upsert user_subscriptions
+        const userId = await getUserIdByCustomer(customerId)
+        if (userId) {
+          await supabase
+            .from('user_subscriptions')
+            .upsert(
+              {
+                user_id: userId,
+                app_key: 'lnklokr',
+                plan_name: tierKey ? (tierKey === 'pro' ? 'LnkLokr Pro' : 'LnkLokr Solo') : 'LnkLokr Solo',
+                status: isActive ? 'active' : sub.status,
+                billing_cycle: billingCycle,
+                stripe_customer_id: customerId,
+                stripe_subscription_id: sub.id,
+                stripe_price_id: priceId,
+                current_period_start: sub.current_period_start
+                  ? new Date(sub.current_period_start * 1000).toISOString()
+                  : null,
+                current_period_end: sub.current_period_end
+                  ? new Date(sub.current_period_end * 1000).toISOString()
+                  : null,
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: 'user_id,app_key' },
+            )
+        }
         break
       }
 
       case 'customer.subscription.deleted': {
         const sub = event.data.object as Stripe.Subscription
         const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id
+
+        // 1. Update users table
         await supabase
           .from('users')
-          .update({
-            is_premium: false,
-            subscription_tier: 'free',
-            cloud_sync: false,
-            premium_until: null,
-          })
+          .update({ is_premium: false, subscription_tier: 'free', premium_until: null })
           .eq('stripe_customer_id', customerId)
+
+        // 2. Update user_subscriptions
+        const userId = await getUserIdByCustomer(customerId)
+        if (userId) {
+          await supabase
+            .from('user_subscriptions')
+            .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+            .eq('user_id', userId)
+            .eq('app_key', 'lnklokr')
+        }
         break
       }
 

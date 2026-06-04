@@ -1,16 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from '@/context/AuthContext'
 import { ToastProvider } from '@/context/ToastContext'
-import { Login } from '@/components/Auth/Login'
-import { SignUp } from '@/components/Auth/SignUp'
+import { LandingPage } from '@/components/Landing/LandingPage'
 import { ResetPassword } from '@/components/Auth/ResetPassword'
 import { Dashboard } from '@/components/Dashboard/Dashboard'
 import { DreamKeeper } from '@/components/Dashboard/DreamKeeper'
 import { ensureResetPasswordPath, isPasswordRecoveryUrl } from '@/lib/authUrl'
 
 function AppContent() {
-  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
   const { isAuthenticated, loading, passwordRecovery } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
@@ -47,11 +45,7 @@ function AppContent() {
   }
 
   if (!isAuthenticated) {
-    return authMode === 'login' ? (
-      <Login onSignUpClick={() => setAuthMode('signup')} />
-    ) : (
-      <SignUp onLoginClick={() => setAuthMode('login')} />
-    )
+    return <LandingPage />
   }
 
   return (

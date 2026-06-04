@@ -13,6 +13,7 @@ import { ExportPanel } from './ExportPanel'
 import { BorrowView } from './BorrowView'
 import { ShareView } from './ShareView'
 import { InboxView } from './InboxView'
+import { TickerTapeAd } from './TickerTapeAd'
 import { Header } from '../shared/Header'
 import { Icon } from '../shared/Icon'
 
@@ -168,7 +169,7 @@ export function Dashboard() {
         onSignOut={signOut}
       />
 
-      <main className="flex-1 bg-gradient-to-b from-white via-pink-50 to-pink-100 border-x-4 border-b-4 border-black relative overflow-auto">
+      <main className={`flex-1 bg-gradient-to-b from-white via-pink-50 to-pink-100 border-x-4 border-b-4 border-black relative overflow-auto ${!user?.is_premium ? 'pb-12' : ''}`}>
         {activeTab === 'inbox' ? (
           <InboxView onBack={() => setActiveTab('menu')} onUnreadCountChange={setInboxCount} />
         ) : activeTab === 'share' ? (
@@ -426,6 +427,10 @@ export function Dashboard() {
 
       {showExport && (
         <ExportPanel onClose={() => setShowExport(false)} />
+      )}
+
+      {!user?.is_premium && (
+        <TickerTapeAd onUpgradeClick={() => setShowSettings(true)} />
       )}
 
       {showBuryPasswordEntry && (

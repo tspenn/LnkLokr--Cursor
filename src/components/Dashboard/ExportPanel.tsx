@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { localStore } from '@/lib/localStore'
-import { premiumService, TIERS } from '@/lib/premiumService'
+import { startCheckout } from '@/lib/premiumService'
+import { useAuth } from '@/context/AuthContext'
 import { Icon } from '../shared/Icon'
 
 interface ExportPanelProps {
@@ -8,28 +9,25 @@ interface ExportPanelProps {
 }
 
 export function ExportPanel({ onClose }: ExportPanelProps) {
+  const { user } = useAuth()
+  const isPremium = user?.is_premium ?? false
   const [stats, setStats] = useState({ total_links: 0, total_folders: 0, total_images: 0, storage_used_mb: 0 })
-  const [isPremium, setIsPremium] = useState(false)
   const [exporting, setExporting] = useState(false)
-  const [upgrading, setUpgrading] = useState<'cloud-monthly' | 'cloud-yearly' | null>(null)
+  const [upgrading, setUpgrading] = useState<'solo-monthly' | 'solo-yearly' | null>(null)
 
   useEffect(() => {
     const loadInfo = async () => {
-      const [storageStats, premiumStatus] = await Promise.all([
-        localStore.getStats(),
-        premiumService.getStatus(),
-      ])
+      const storageStats = await localStore.getStats()
       setStats(storageStats)
-      setIsPremium(premiumStatus.isPremium)
     }
     loadInfo()
   }, [])
 
   const handleUpgrade = async (billing: 'monthly' | 'yearly') => {
-    const tier = billing === 'yearly' ? 'cloud-yearly' : 'cloud-monthly'
+    const tier = billing === 'yearly' ? 'solo-yearly' : 'solo-monthly'
     setUpgrading(tier)
     try {
-      const url = await premiumService.startCloudCheckout(billing)
+      const url = await startCheckout(tier)
       if (url) {
         window.location.href = url
       } else {
@@ -189,25 +187,23 @@ export function ExportPanel({ onClose }: ExportPanelProps) {
                   <Icon name="crown" size={24} />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-bold text-gray-900">Upgrade to LokBx Cloud</h3>
-                  <p className="text-sm text-gray-600">
-                    {TIERS['cloud-monthly'].priceLabel} or {TIERS['cloud-yearly'].priceLabel}
-                  </p>
+                  <h3 className="font-bold text-gray-900">Upgrade to LnkLokr Solo</h3>
+                  <p className="text-sm text-gray-600">$2.99 / mo or $24.99 / yr</p>
                 </div>
               </div>
 
               <div className="space-y-2 mb-4">
                 <div className="flex items-center gap-2 text-sm text-gray-700">
                   <div className="w-2 h-2 bg-amber-500 rounded-full" />
-                  <span>Automatic LokBx cloud backup</span>
+                  <span>Automatic cloud backup</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-gray-700">
                   <div className="w-2 h-2 bg-amber-500 rounded-full" />
-                  <span>Sync across all devices</span>
+                  <span>All your mobile devices</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-gray-700">
                   <div className="w-2 h-2 bg-amber-500 rounded-full" />
-                  <span>Never lose your data</span>
+                  <span>No ads</span>
                 </div>
               </div>
 
@@ -217,14 +213,14 @@ export function ExportPanel({ onClose }: ExportPanelProps) {
                   disabled={upgrading !== null}
                   className="bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-500 hover:to-orange-500 disabled:opacity-60 text-white font-bold py-3 rounded-lg transition shadow-md hover:shadow-lg"
                 >
-                  {upgrading === 'cloud-monthly' ? 'Starting…' : `Monthly · ${TIERS['cloud-monthly'].priceLabel}`}
+                  {upgrading === 'solo-monthly' ? 'Starting…' : 'Monthly · $2.99'}
                 </button>
                 <button
                   onClick={() => handleUpgrade('yearly')}
                   disabled={upgrading !== null}
                   className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 disabled:opacity-60 text-white font-bold py-3 rounded-lg transition shadow-md hover:shadow-lg"
                 >
-                  {upgrading === 'cloud-yearly' ? 'Starting…' : `Yearly · ${TIERS['cloud-yearly'].priceLabel}`}
+                  {upgrading === 'solo-yearly' ? 'Starting…' : 'Yearly · $24.99'}
                 </button>
               </div>
             </div>

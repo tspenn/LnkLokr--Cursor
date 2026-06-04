@@ -1,186 +1,186 @@
-import { localStore } from './localStore';
-
-export interface PremiumStatus {
-  isPremium: boolean;
-  activationKey?: string;
-  activatedAt?: string;
-  cloudSyncEnabled: boolean;
-}
-
 /**
- * Pricing tiers as shown on the LnkLokr product page. Each tier maps to a
- * Stripe Price ID configured in your Vercel project env vars.
+ * LnkLokr subscription tiers.
  *
- * The `mode` is what Stripe uses for Checkout Session creation:
- *   - "payment"      → one-time charge (One Device, 5-device add-on)
- *   - "subscription" → recurring (LokBx Cloud monthly / yearly)
+ * Free  — mobile, 30-item cloud sync, links only (no image storage), ads
+ * Solo  — all mobile devices, unlimited cloud, 2 GB image storage, no ads
+ * Pro   — all devices incl. PC/Mac/Chromebook, Chrome extension, 10 GB, no ads
  */
-export type TierId =
-  | 'one-device'
-  | 'five-device'
-  | 'cloud-monthly'
-  | 'cloud-yearly';
+
+export type TierKey = 'free' | 'solo' | 'pro'
+export type BillingCycle = 'monthly' | 'yearly'
+export type TierId = 'solo-monthly' | 'solo-yearly' | 'pro-monthly' | 'pro-yearly'
 
 export interface Tier {
-  id: TierId;
-  name: string;
-  priceLabel: string;
-  description: string;
-  mode: 'payment' | 'subscription';
-  /** Env-var key on the server (Vercel) holding the Stripe Price ID. */
-  priceEnvVar: string;
+  id: TierId
+  tierKey: Exclude<TierKey, 'free'>
+  billingCycle: BillingCycle
+  name: string
+  priceLabel: string
+  yearlyEquivalent?: string   // e.g. "$2.08 / mo" shown under yearly price
+  annualSavings?: string      // e.g. "Save $11"
+  description: string
+  features: string[]
+  priceEnvVar: string
+  storageGB: number
+  maxDevices: number | 'unlimited'
+  includesExtension: boolean
 }
 
 export const TIERS: Record<TierId, Tier> = {
-  'one-device': {
-    id: 'one-device',
-    name: 'LnkLokr — One Device',
-    priceLabel: '$3.99',
-    description: 'Stand-alone install for a single PC or mobile device.',
-    mode: 'payment',
-    priceEnvVar: 'STRIPE_PRICE_ID_ONE_DEVICE',
+  'solo-monthly': {
+    id: 'solo-monthly',
+    tierKey: 'solo',
+    billingCycle: 'monthly',
+    name: 'LnkLokr Solo',
+    priceLabel: '$2.99 / mo',
+    description: 'All your mobile devices. No ads. Cloud backup.',
+    features: [
+      'All mobile devices (iOS & Android)',
+      'Unlimited links + image saves',
+      '2 GB cloud storage',
+      'No ads',
+      'Full Keep / Borrow / Share / Bury workflow',
+    ],
+    priceEnvVar: 'STRIPE_PRICE_ID_SOLO_MONTHLY',
+    storageGB: 2,
+    maxDevices: 'unlimited',
+    includesExtension: false,
   },
-  'five-device': {
-    id: 'five-device',
-    name: 'More Devices — 5 Device Pack',
-    priceLabel: '$7.99',
-    description: 'Add-on. Activate LnkLokr on up to 5 total devices.',
-    mode: 'payment',
-    priceEnvVar: 'STRIPE_PRICE_ID_FIVE_DEVICE',
+  'solo-yearly': {
+    id: 'solo-yearly',
+    tierKey: 'solo',
+    billingCycle: 'yearly',
+    name: 'LnkLokr Solo',
+    priceLabel: '$24.99 / yr',
+    yearlyEquivalent: '$2.08 / mo',
+    annualSavings: 'Save $11',
+    description: 'All your mobile devices. No ads. Cloud backup.',
+    features: [
+      'All mobile devices (iOS & Android)',
+      'Unlimited links + image saves',
+      '2 GB cloud storage',
+      'No ads',
+      'Full Keep / Borrow / Share / Bury workflow',
+    ],
+    priceEnvVar: 'STRIPE_PRICE_ID_SOLO_YEARLY',
+    storageGB: 2,
+    maxDevices: 'unlimited',
+    includesExtension: false,
   },
-  'cloud-monthly': {
-    id: 'cloud-monthly',
-    name: 'LokBx Cloud Storage — Monthly',
-    priceLabel: '$4.99 / month',
-    description: 'Sync, backup, and restore across all your devices.',
-    mode: 'subscription',
-    priceEnvVar: 'STRIPE_PRICE_ID_CLOUD_MONTHLY',
+  'pro-monthly': {
+    id: 'pro-monthly',
+    tierKey: 'pro',
+    billingCycle: 'monthly',
+    name: 'LnkLokr Pro',
+    priceLabel: '$5.99 / mo',
+    description: 'Every device including PC & Mac. Chrome extension. Maximum storage.',
+    features: [
+      'All mobile + PC / Mac / Chromebook',
+      'Chrome extension — one-click save from any page',
+      'Unlimited links + image saves',
+      '10 GB cloud storage',
+      'No ads',
+      'Full Keep / Borrow / Share / Bury workflow',
+    ],
+    priceEnvVar: 'STRIPE_PRICE_ID_PRO_MONTHLY',
+    storageGB: 10,
+    maxDevices: 'unlimited',
+    includesExtension: true,
   },
-  'cloud-yearly': {
-    id: 'cloud-yearly',
-    name: 'LokBx Cloud Storage — Yearly',
-    priceLabel: '$59.00 / year',
-    description: 'Two months free vs. paying monthly.',
-    mode: 'subscription',
-    priceEnvVar: 'STRIPE_PRICE_ID_CLOUD_YEARLY',
+  'pro-yearly': {
+    id: 'pro-yearly',
+    tierKey: 'pro',
+    billingCycle: 'yearly',
+    name: 'LnkLokr Pro',
+    priceLabel: '$49.99 / yr',
+    yearlyEquivalent: '$4.17 / mo',
+    annualSavings: 'Save $22',
+    description: 'Every device including PC & Mac. Chrome extension. Maximum storage.',
+    features: [
+      'All mobile + PC / Mac / Chromebook',
+      'Chrome extension — one-click save from any page',
+      'Unlimited links + image saves',
+      '10 GB cloud storage',
+      'No ads',
+      'Full Keep / Borrow / Share / Bury workflow',
+    ],
+    priceEnvVar: 'STRIPE_PRICE_ID_PRO_YEARLY',
+    storageGB: 10,
+    maxDevices: 'unlimited',
+    includesExtension: true,
   },
-};
+}
 
 export const TIER_ORDER: TierId[] = [
-  'one-device',
-  'five-device',
-  'cloud-monthly',
-  'cloud-yearly',
-];
+  'solo-monthly',
+  'solo-yearly',
+  'pro-monthly',
+  'pro-yearly',
+]
 
-class PremiumService {
-  private status: PremiumStatus | null = null;
+export const FREE_TIER = {
+  tierKey: 'free' as TierKey,
+  name: 'LnkLokr Free',
+  priceLabel: 'Free forever',
+  description: 'Save links with images on your phone. Try the full LnkLokr workflow.',
+  features: [
+    'One mobile device',
+    'Save links with images',
+    'Last 30 items synced to cloud',
+    'Full Keep / Borrow / Share / Bury workflow',
+    'Ad-supported',
+  ],
+  storageGB: 0,
+  maxDevices: 1,
+  includesExtension: false,
+}
 
-  async init(): Promise<void> {
-    const saved = await localStore.getSetting('premium_status');
-    this.status = saved || {
-      isPremium: false,
-      cloudSyncEnabled: false,
-    };
-  }
+/** Start a Stripe Checkout Session for a paid tier. */
+export async function startCheckout(tierId: TierId, email?: string): Promise<string | null> {
+  try {
+    const res = await fetch('/api/stripe/create-checkout-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tier: tierId, email }),
+    })
 
-  async getStatus(): Promise<PremiumStatus> {
-    if (!this.status) {
-      await this.init();
-    }
-    return this.status!;
-  }
-
-  /**
-   * Starts a Stripe checkout session via the serverless API route. The route
-   * resolves `tier` to the right Stripe Price ID using the *_ENV_VAR mapping
-   * in TIERS. Pass an email to prefill the Checkout customer field.
-   */
-  async startCheckout(tier: TierId, email?: string): Promise<string | null> {
-    try {
-      const res = await fetch('/api/stripe/create-checkout-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tier, email }),
-      });
-
-      if (!res.ok) {
-        const detail = await res.text().catch(() => '');
-        throw new Error(`Checkout session failed: ${res.status} ${detail}`);
-      }
-
-      const { url } = (await res.json()) as { url?: string };
-      return url ?? null;
-    } catch (error) {
-      console.error('Failed to start Stripe checkout:', error);
-      return null;
-    }
-  }
-
-  /** Convenience helpers for the most common upgrade paths. */
-  startCloudCheckout(billing: 'monthly' | 'yearly', email?: string) {
-    return this.startCheckout(billing === 'yearly' ? 'cloud-yearly' : 'cloud-monthly', email);
-  }
-
-  async activatePremium(activationKey: string): Promise<boolean> {
-    const isValid = await this.validateKey(activationKey);
-
-    if (isValid) {
-      this.status = {
-        isPremium: true,
-        activationKey,
-        activatedAt: new Date().toISOString(),
-        cloudSyncEnabled: false,
-      };
-
-      await localStore.setSetting('premium_status', this.status);
-      return true;
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '')
+      throw new Error(`Checkout session failed: ${res.status} ${detail}`)
     }
 
-    return false;
-  }
-
-  private async validateKey(key: string): Promise<boolean> {
-    return key.length >= 10;
-  }
-
-  async toggleCloudSync(enabled: boolean): Promise<boolean> {
-    if (!this.status) await this.init();
-
-    if (!this.status!.isPremium) {
-      return false;
-    }
-
-    this.status!.cloudSyncEnabled = enabled;
-    await localStore.setSetting('premium_status', this.status);
-    return true;
-  }
-
-  async deactivate(): Promise<void> {
-    this.status = {
-      isPremium: false,
-      cloudSyncEnabled: false,
-    };
-    await localStore.setSetting('premium_status', this.status);
-  }
-
-  isPremiumUser(): boolean {
-    return this.status?.isPremium || false;
-  }
-
-  isCloudSyncEnabled(): boolean {
-    return (this.status?.isPremium && this.status?.cloudSyncEnabled) || false;
+    const { url } = (await res.json()) as { url?: string }
+    return url ?? null
+  } catch (error) {
+    console.error('Failed to start Stripe checkout:', error)
+    return null
   }
 }
 
-export const premiumService = new PremiumService();
+/** Open the Stripe Billing Portal for an existing subscriber. */
+export async function openBillingPortal(email: string): Promise<void> {
+  try {
+    const res = await fetch('/api/stripe/billing-portal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    })
 
-/**
- * Where the "Upgrade" buttons in the marketing UI send the user. Defaults
- * to kicking off a LokBx Cloud monthly subscription via the in-app API.
- * Override with `VITE_PURCHASE_URL` to point at a hosted Stripe Payment
- * Link or a Shopify product page.
- */
-export const PURCHASE_URL: string =
-  (import.meta.env.VITE_PURCHASE_URL as string | undefined) ||
-  '/api/stripe/create-checkout-session?tier=cloud-monthly';
+    if (!res.ok) throw new Error(`Portal request failed: ${res.status}`)
+
+    const { url } = (await res.json()) as { url?: string }
+    if (url) window.location.href = url
+  } catch (error) {
+    console.error('Failed to open billing portal:', error)
+    alert('Could not open billing portal. Please try again.')
+  }
+}
+
+/** Resolve the current user's tier from their Supabase is_premium + subscription data. */
+export function resolveTierKey(isPremium: boolean, planName?: string | null): TierKey {
+  if (!isPremium) return 'free'
+  if (planName?.toLowerCase().includes('pro')) return 'pro'
+  return 'solo'
+}
+
+export const PURCHASE_URL = '/api/stripe/create-checkout-session?tier=solo-monthly'
