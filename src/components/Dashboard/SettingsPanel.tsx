@@ -228,14 +228,24 @@ export function SettingsPanel({ onClose, onExportClick }: SettingsPanelProps) {
                   ? 'All devices · Chrome extension · 10 GB cloud storage'
                   : 'All mobile devices · 2 GB cloud storage · No ads'}
               </p>
-              <button
-                onClick={handleManageSubscription}
-                disabled={portalLoading}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border-2 border-amber-300 hover:bg-amber-50 text-amber-900 rounded-lg text-sm font-medium transition disabled:opacity-50"
-              >
-                <Icon name="settings" size={16} />
-                {portalLoading ? 'Opening…' : 'Manage subscription'}
-              </button>
+              <div className="space-y-2">
+                <button
+                  onClick={handleManageSubscription}
+                  disabled={portalLoading}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border-2 border-amber-300 hover:bg-amber-50 text-amber-900 rounded-lg text-sm font-medium transition disabled:opacity-50"
+                >
+                  <Icon name="settings" size={16} />
+                  {portalLoading ? 'Opening…' : 'Manage / Change plan'}
+                </button>
+                <button
+                  onClick={handleManageSubscription}
+                  disabled={portalLoading}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border border-red-200 hover:bg-red-50 text-red-600 rounded-lg text-sm transition disabled:opacity-50"
+                >
+                  {portalLoading ? 'Opening…' : 'Cancel subscription'}
+                </button>
+                <p className="text-xs text-center text-gray-400">Both open the Stripe portal — cancel is inside.</p>
+              </div>
             </div>
           )}
 
