@@ -341,6 +341,13 @@ export function SettingsPanel({ onClose, onExportClick }: SettingsPanelProps) {
               <p className="text-xs text-gray-400 mt-1">Cancel at any time · Your data is yours · Never sold</p>
             </div>
           </div>
+
+          <button
+            onClick={onClose}
+            className="w-full py-3 rounded-xl border-2 border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-600 font-semibold text-sm transition"
+          >
+            Close
+          </button>
         </div>
       </div>
     </div>

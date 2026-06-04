@@ -90,7 +90,7 @@ export function TickerTapeAd({ onUpgradeClick }: TickerTapeAdProps) {
         .lnklokr-ticker-track {
           display: inline-flex;
           white-space: nowrap;
-          animation: lnklokr-ticker 55s linear infinite;
+          animation: lnklokr-ticker 90s linear infinite;
           will-change: transform;
         }
         .lnklokr-ticker-track:hover {
