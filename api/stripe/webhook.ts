@@ -6,7 +6,7 @@ import { createClient } from '@supabase/supabase-js'
  * POST /api/stripe/webhook
  *
  * Verifies the Stripe webhook signature, then:
- *   1. Upserts a row in user_subscriptions (app_key = 'lnklokr') — source of truth
+ *   1. Upserts a row in user_subscriptions (app_key = APP_KEY) — source of truth
  *   2. Updates users.is_premium / subscription_tier — used by in-app gate checks
  *
  * Required Vercel env vars:
@@ -21,6 +21,8 @@ import { createClient } from '@supabase/supabase-js'
  */
 
 export const config = { api: { bodyParser: false } }
+
+const APP_KEY: string = process.env.VITE_APP_KEY ?? 'lnklokr'
 
 type TierKey = 'solo' | 'pro'
 const VALID_TIER_KEYS = new Set<TierKey>(['solo', 'pro'])
@@ -124,7 +126,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             .upsert(
               {
                 user_id: userId,
-                app_key: 'lnklokr',
+                app_key: APP_KEY,
                 plan_name: tierKey ? (tierKey === 'pro' ? 'LnkLokr Pro' : 'LnkLokr Solo') : 'LnkLokr Solo',
                 status: 'active',
                 billing_cycle: billingCycle,
@@ -168,7 +170,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             .upsert(
               {
                 user_id: userId,
-                app_key: 'lnklokr',
+                app_key: APP_KEY,
                 plan_name: tierKey ? (tierKey === 'pro' ? 'LnkLokr Pro' : 'LnkLokr Solo') : 'LnkLokr Solo',
                 status: isActive ? 'active' : sub.status,
                 billing_cycle: billingCycle,
@@ -206,7 +208,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             .from('user_subscriptions')
             .update({ status: 'cancelled', updated_at: new Date().toISOString() })
             .eq('user_id', userId)
-            .eq('app_key', 'lnklokr')
+            .eq('app_key', APP_KEY)
         }
         break
       }

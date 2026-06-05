@@ -47,6 +47,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   return handleCreate(req, res, false)
 }
 
+const APP_KEY = process.env.VITE_APP_KEY ?? 'lnklokr'
+
 async function handleCreate(req: VercelRequest, res: VercelResponse, redirect: boolean) {
   const secret = process.env.STRIPE_SECRET_KEY
   if (!secret) {
@@ -89,14 +91,14 @@ async function handleCreate(req: VercelRequest, res: VercelResponse, redirect: b
       success_url: `${siteUrl}/?checkout=success&tier=${tierId}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${siteUrl}/?checkout=cancelled&tier=${tierId}`,
       metadata: {
-        app_key: 'lnklokr',
+        app_key: APP_KEY,
         tier_key: tier.tierKey,
         billing_cycle: tier.billingCycle,
         tier: tierId,
       },
       subscription_data: {
         metadata: {
-          app_key: 'lnklokr',
+          app_key: APP_KEY,
           tier_key: tier.tierKey,
           billing_cycle: tier.billingCycle,
           tier: tierId,
