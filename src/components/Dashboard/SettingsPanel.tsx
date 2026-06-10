@@ -343,10 +343,46 @@ export function SettingsPanel({ onClose, onExportClick }: SettingsPanelProps) {
             </button>
           </div>
 
+          {/* ── Chrome Extension section ── */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <Icon name="globe" size={16} />
+              Chrome Extension
+            </h3>
+            <div className="p-4 bg-blue-50 border-2 border-blue-200 rounded-lg space-y-3">
+              <p className="text-sm text-blue-900 font-medium">Right-click to save from any page</p>
+              <p className="text-sm text-blue-800">
+                The LnkLokr extension lets you save links, images, and selected text directly from your browser — no copying needed.
+              </p>
+              <div className="space-y-1.5 text-sm text-blue-700">
+                <p>① Install the extension from the Chrome Web Store</p>
+                <p>② Click the LnkLokr icon in your toolbar</p>
+                <p>③ Sign in with your account email &amp; password</p>
+                <p>④ Right-click any link or image → <strong>Save to LnkLokr</strong></p>
+              </div>
+              {isPremium && (
+                <a
+                  href="https://chrome.google.com/webstore/detail/lnklokr"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition justify-center"
+                >
+                  <Icon name="external-link" size={14} />
+                  Get the Extension
+                </a>
+              )}
+              {!isPremium && (
+                <p className="text-xs text-blue-600 font-medium">
+                  Image &amp; file saving requires Solo or Pro. <button onClick={onClose} className="underline">Upgrade →</button>
+                </p>
+              )}
+            </div>
+          </div>
+
           <div>
             <h3 className="text-sm font-semibold text-gray-900 mb-3">About</h3>
             <div className="space-y-2 text-sm text-gray-600">
-              <p>LnkLokr v2.0.0</p>
+              <p>LnkLokr v1.5.1</p>
               <p>Save links with images. Keep · Borrow · Share · Bury.</p>
               <p className="text-xs text-gray-400 mt-1">Cancel at any time · Your data is yours · Never sold</p>
             </div>
