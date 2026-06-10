@@ -3,6 +3,7 @@ import { localStore } from '@/lib/localStore'
 import { TIERS, startCheckout, openBillingPortal, resolveTierKey, type TierId } from '@/lib/premiumService'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/context/AuthContext'
+import { useToast } from '@/context/ToastContext'
 import { Icon } from '../shared/Icon'
 
 interface SettingsPanelProps {
@@ -12,6 +13,7 @@ interface SettingsPanelProps {
 
 export function SettingsPanel({ onClose, onExportClick }: SettingsPanelProps) {
   const { user } = useAuth()
+  const toast = useToast()
   const [isPremium, setIsPremium] = useState(false)
   const [stats, setStats] = useState({ total_links: 0, total_folders: 0, total_images: 0, storage_used_mb: 0 })
   const [newBuryPassword, setNewBuryPassword] = useState('')
@@ -93,10 +95,9 @@ export function SettingsPanel({ onClose, onExportClick }: SettingsPanelProps) {
       setHasBuryPassword(true)
       setNewBuryPassword('')
       setConfirmBuryPassword('')
-      alert('Bury password saved successfully!')
+      toast.success('Bury password saved')
     } catch (error) {
-      console.error('Failed to save bury password:', error)
-      alert('Failed to save password. Please try again.')
+      toast.error('Failed to save password. Please try again.')
     } finally {
       setSavingPassword(false)
     }
@@ -117,10 +118,9 @@ export function SettingsPanel({ onClose, onExportClick }: SettingsPanelProps) {
       setHasBuryPassword(false)
       setNewBuryPassword('')
       setConfirmBuryPassword('')
-      alert('Bury password removed successfully!')
+      toast.success('Bury password removed')
     } catch (error) {
-      console.error('Failed to remove bury password:', error)
-      alert('Failed to remove password. Please try again.')
+      toast.error('Failed to remove password. Please try again.')
     }
   }
 

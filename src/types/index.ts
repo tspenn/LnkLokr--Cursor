@@ -41,6 +41,7 @@ export interface Link {
   title: string
   description?: string | null
   thumbnail_url?: string | null
+  icon?: string | null
   notes?: string | null
   tags?: string[]
   is_favorite?: boolean

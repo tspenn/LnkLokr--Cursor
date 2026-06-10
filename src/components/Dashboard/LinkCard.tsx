@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from '@/types'
-import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/context/AuthContext'
+import { updateLink } from '@/lib/dataService'
 import { clsx } from 'clsx'
 import { Icon } from '../shared/Icon'
 
@@ -11,20 +12,17 @@ interface LinkCardProps {
 }
 
 export function LinkCard({ link, onDelete, onCopySuccess }: LinkCardProps) {
+  const { user } = useAuth()
   const [isFavorite, setIsFavorite] = useState(link.is_favorite)
   const [isDeleting, setIsDeleting] = useState(false)
 
   const handleToggleFavorite = async () => {
+    if (!user) return
     try {
-      const { error } = await supabase
-        .from('links')
-        .update({ is_favorite: !isFavorite })
-        .eq('id', link.id)
-
-      if (error) throw error
+      await updateLink(user.is_premium ?? false, user.id, link.id, { is_favorite: !isFavorite })
       setIsFavorite(!isFavorite)
-    } catch (error) {
-      console.error('Failed to update favorite:', error)
+    } catch {
+      // Non-fatal — icon will revert on next load
     }
   }
 
@@ -61,7 +59,11 @@ export function LinkCard({ link, onDelete, onCopySuccess }: LinkCardProps) {
 
       {!link.thumbnail_url && (
         <div className="h-40 bg-gradient-to-br from-primary-50 to-primary-100 dark:from-primary-900/20 dark:to-primary-800/20 flex items-center justify-center">
-          <Icon name="globe" size={48} className="text-primary-300 dark:text-primary-700" />
+          {link.icon ? (
+            <img src={link.icon} alt="" className="w-12 h-12 object-contain opacity-70" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+          ) : (
+            <Icon name="globe" size={48} className="text-primary-300 dark:text-primary-700" />
+          )}
         </div>
       )}
 

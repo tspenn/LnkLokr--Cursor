@@ -6,14 +6,14 @@
   "permissions": [
     "contextMenus",
     "activeTab",
-    "scripting",
     "storage",
     "tabs",
     "notifications"
   ],
   "host_permissions": [
     "https://*.supabase.co/*",
-    "https://*.vercel.app/*"
+    "https://lnklokr.vercel.app/*",
+    "<all_urls>"
   ],
   "action": {
     "default_icon": {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
+import { useToast } from '@/context/ToastContext'
 import { supabase } from '@/lib/supabase'
 import { PURCHASE_URL } from '@/lib/premiumService'
 import { Icon } from '../shared/Icon'
@@ -35,6 +36,7 @@ interface SavedGalleryProps {
 
 export function SavedGallery({ contentType = 'image', status }: SavedGalleryProps) {
   const { user } = useAuth()
+  const toast = useToast()
   const [items, setItems] = useState<SavedItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -73,7 +75,7 @@ export function SavedGallery({ contentType = 'image', status }: SavedGalleryProp
       setItems(itemsResponse.data || [])
       setFolders(foldersResponse.data || [])
     } catch (error) {
-      console.error('Failed to load saved items:', error)
+      toast.error('Failed to load saved items')
     } finally {
       setIsLoading(false)
       setIsRefreshing(false)
@@ -133,8 +135,7 @@ export function SavedGallery({ contentType = 'image', status }: SavedGalleryProp
 
       if (error) throw error
     } catch (error) {
-      console.error('Failed to delete item:', error)
-      alert('Failed to delete image')
+      toast.error('Failed to delete item')
     } finally {
       setDeletingId(null)
     }

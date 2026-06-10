@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { Folder, Link } from '@/types'
 import { Icon } from '../shared/Icon'
 
@@ -19,6 +19,37 @@ export function AddLinkModal({ folders, onAdd, onClose }: AddLinkModalProps) {
   const [tagInput, setTagInput] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [isScraping, setIsScraping] = useState(false)
+  const scrapeDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const scrapeUrl = async (url: string) => {
+    try {
+      new URL(url)
+    } catch {
+      return
+    }
+    setIsScraping(true)
+    try {
+      const res = await fetch(`/api/scrape?url=${encodeURIComponent(url)}`)
+      if (!res.ok) return
+      const meta = await res.json()
+      setFormData(prev => ({
+        ...prev,
+        title: prev.title || meta.title || '',
+        description: prev.description || meta.description || '',
+      }))
+    } catch {
+      // Non-fatal — user can fill in manually
+    } finally {
+      setIsScraping(false)
+    }
+  }
+
+  const handleUrlChange = (url: string) => {
+    setFormData(prev => ({ ...prev, url }))
+    if (scrapeDebounce.current) clearTimeout(scrapeDebounce.current)
+    scrapeDebounce.current = setTimeout(() => scrapeUrl(url), 800)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -38,8 +69,22 @@ export function AddLinkModal({ folders, onAdd, onClose }: AddLinkModalProps) {
 
     setIsLoading(true)
     try {
+      // Fetch final metadata server-side at save time to capture thumbnail_url
+      let thumbnail_url: string | null = null
+      let icon: string | null = null
+      try {
+        const res = await fetch(`/api/scrape?url=${encodeURIComponent(formData.url)}`)
+        if (res.ok) {
+          const meta = await res.json()
+          thumbnail_url = meta.thumbnail_url ?? null
+          icon = meta.icon ?? null
+        }
+      } catch { /* non-fatal */ }
+
       await onAdd({
         ...formData,
+        thumbnail_url,
+        icon,
         is_favorite: false,
       })
     } catch (err) {
@@ -92,16 +137,23 @@ export function AddLinkModal({ folders, onAdd, onClose }: AddLinkModalProps) {
             <label htmlFor="url-input" className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
               URL <span className="text-error-500">*</span>
             </label>
-            <input
-              id="url-input"
-              type="url"
-              value={formData.url}
-              onChange={(e) => setFormData(prev => ({ ...prev, url: e.target.value }))}
-              placeholder="https://example.com"
-              required
-              disabled={isLoading}
-              className="input-field"
-            />
+            <div className="relative">
+              <input
+                id="url-input"
+                type="url"
+                value={formData.url}
+                onChange={(e) => handleUrlChange(e.target.value)}
+                placeholder="https://example.com"
+                required
+                disabled={isLoading}
+                className="input-field pr-10"
+              />
+              {isScraping && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 animate-pulse">
+                  Fetching…
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="space-y-2">

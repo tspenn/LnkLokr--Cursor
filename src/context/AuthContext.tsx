@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase, syncSessionToBackground } from '@/lib/supabase'
 import { getAuthRedirectUrl } from '@/lib/authRedirect'
 import {
   clearAwaitingPasswordReset,
@@ -203,6 +203,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               if (!mounted) return
 
               if (profile) {
+                syncSessionToBackground()
                 setAuthState(prev => ({
                   isAuthenticated: true,
                   user: profile,

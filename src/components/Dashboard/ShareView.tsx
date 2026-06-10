@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/context/AuthContext'
+import { useToast } from '@/context/ToastContext'
 import { supabase } from '@/lib/supabase'
+import { getLinksByStatus, updateLink, deleteLink } from '@/lib/dataService'
 import { Link, SavedItem } from '@/types'
 import { Icon } from '../shared/Icon'
 
@@ -25,6 +27,7 @@ interface ShareViewProps {
 
 export function ShareView({ onBack }: ShareViewProps) {
   const { user } = useAuth()
+  const toast = useToast()
   const [filter, setFilter] = useState<FilterType>('all')
   const [items, setItems] = useState<ShareItem[]>([])
   const [activeMenu, setActiveMenu] = useState<string | null>(null)
@@ -52,11 +55,15 @@ export function ShareView({ onBack }: ShareViewProps) {
 
   const loadData = async () => {
     if (!user) return
+    const isPremium = user.is_premium ?? false
     try {
-      const [linksRes, savedRes] = await Promise.all([
-        supabase.from('links').select('*').eq('user_id', user.id).eq('status', 'share').order('created_at', { ascending: false }),
-        supabase.from('saved_items').select('*').eq('user_id', user.id).eq('status', 'share').order('created_at', { ascending: false }),
-      ])
+      const sharedLinks = await getLinksByStatus(isPremium, user.id, 'share')
+
+      const savedRes = isPremium
+        ? await supabase.from('saved_items').select('*').eq('user_id', user.id).eq('status', 'share').order('created_at', { ascending: false })
+        : { data: [] }
+
+      const linksRes = { data: sharedLinks }
 
       const linkItems: ShareItem[] = (linksRes.data || []).map((link: Link) => ({
         id: link.id,
@@ -84,37 +91,49 @@ export function ShareView({ onBack }: ShareViewProps) {
         [...linkItems, ...savedItems].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
       )
     } catch (error) {
-      console.error('Failed to load share data:', error)
+      toast.error('Failed to load Share items')
     } finally {
       setIsLoading(false)
     }
   }
 
   const handleMoveItem = async (itemId: string, itemType: 'link' | 'saved_item', newStatus: string) => {
+    if (!user) return
+    const isPremium = user.is_premium ?? false
     try {
-      const table = itemType === 'link' ? 'links' : 'saved_items'
-      await supabase.from(table).update({ status: newStatus }).eq('id', itemId)
+      if (itemType === 'link') {
+        await updateLink(isPremium, user.id, itemId, { status: newStatus as Link['status'] })
+      } else {
+        await supabase.from('saved_items').update({ status: newStatus }).eq('id', itemId)
+      }
       setActiveMenu(null)
+      toast.success(`Moved to ${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}`)
       loadData()
     } catch (error) {
-      console.error('Failed to move item:', error)
+      toast.error('Failed to move item')
     }
   }
 
   const handleDeleteItem = async (itemId: string, itemType: 'link' | 'saved_item') => {
+    if (!user) return
+    const isPremium = user.is_premium ?? false
     try {
-      const table = itemType === 'link' ? 'links' : 'saved_items'
-      await supabase.from(table).delete().eq('id', itemId)
+      if (itemType === 'link') {
+        await deleteLink(isPremium, user.id, itemId)
+      } else {
+        await supabase.from('saved_items').delete().eq('id', itemId)
+      }
       setActiveMenu(null)
+      toast.success('Item deleted')
       loadData()
     } catch (error) {
-      console.error('Failed to delete item:', error)
+      toast.error('Failed to delete item')
     }
   }
 
   const handleCopyUrl = (url?: string) => {
     if (!url) return
-    navigator.clipboard.writeText(url)
+    navigator.clipboard.writeText(url).then(() => toast.info('URL copied')).catch(() => {})
     setActiveMenu(null)
   }
 
@@ -133,11 +152,11 @@ export function ShareView({ onBack }: ShareViewProps) {
         // Fallback: copy to clipboard
         const text = item.url ?? item.title
         await navigator.clipboard.writeText(text)
-        alert('Copied to clipboard — paste to share!')
+        toast.info('Copied to clipboard — paste to share!')
       }
     } catch (err) {
       if (err instanceof Error && err.name !== 'AbortError') {
-        console.error('Share failed:', err)
+        toast.error('Share failed')
       }
     }
   }
@@ -201,7 +220,7 @@ export function ShareView({ onBack }: ShareViewProps) {
       </div>
 
       <div className="bg-pink-200 border-b-4 border-black px-6 py-3">
-        <div className="max-w-7xl mx-auto flex gap-2">
+        <div className="max-w-7xl mx-auto flex flex-wrap gap-2">
           {(['all', 'url', 'image', 'file'] as FilterType[]).map(f => (
             <button
               key={f}

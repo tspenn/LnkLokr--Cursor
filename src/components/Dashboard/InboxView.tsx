@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/context/AuthContext'
+import { useToast } from '@/context/ToastContext'
 import { supabase } from '@/lib/supabase'
+import { addLink } from '@/lib/dataService'
 import { Icon } from '../shared/Icon'
 
 interface InboxItem {
@@ -43,9 +45,11 @@ interface InboxViewProps {
 
 export function InboxView({ onBack, onUnreadCountChange }: InboxViewProps) {
   const { user } = useAuth()
+  const toast = useToast()
   const [items, setItems] = useState<InboxItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [filter, setFilter] = useState<'unread' | 'all'>('unread')
+  const [savingIds, setSavingIds] = useState<Set<string>>(new Set())
 
   const loadItems = useCallback(async () => {
     if (!user) return
@@ -64,7 +68,7 @@ export function InboxView({ onBack, onUnreadCountChange }: InboxViewProps) {
       const unread = inbox.filter(i => !i.is_read).length
       onUnreadCountChange?.(unread)
     } catch (err) {
-      console.error('Failed to load inbox:', err)
+      toast.error('Failed to load inbox')
     } finally {
       setIsLoading(false)
     }
@@ -113,6 +117,33 @@ export function InboxView({ onBack, onUnreadCountChange }: InboxViewProps) {
       .eq('is_read', false)
     setItems(prev => prev.map(i => ({ ...i, is_read: true })))
     onUnreadCountChange?.(0)
+  }
+
+  const saveToKeep = async (item: InboxItem) => {
+    if (!user) return
+    setSavingIds(prev => new Set(prev).add(item.id))
+    try {
+      const url = isUrl(item.content) ? item.content : (item.metadata?.url as string | undefined)
+      if (!url) {
+        toast.warning('No URL to save from this item')
+        return
+      }
+      await addLink(user.is_premium ?? false, user.id, {
+        url,
+        title: (item.metadata?.title as string | undefined) || item.content.slice(0, 120) || 'Inbox item',
+        description: item.metadata ? String(item.metadata.description ?? '') : null,
+        status: 'keep',
+        content_type: 'url',
+        tags: [],
+        is_favorite: false,
+      })
+      await markRead(item.id)
+      toast.success('Saved to Keep!')
+    } catch {
+      toast.error('Failed to save to Keep')
+    } finally {
+      setSavingIds(prev => { const s = new Set(prev); s.delete(item.id); return s })
+    }
   }
 
   const displayed = filter === 'unread' ? items.filter(i => !i.is_read) : items
@@ -273,16 +304,28 @@ export function InboxView({ onBack, onUnreadCountChange }: InboxViewProps) {
                   </div>
 
                   {/* Actions */}
-                  {!item.is_read && (
-                    <div className="mt-3 flex justify-end">
+                  <div className="mt-3 flex items-center justify-between gap-2 flex-wrap">
+                    {(contentIsUrl || item.metadata?.url) ? (
+                      <button
+                        onClick={() => saveToKeep(item)}
+                        disabled={savingIds.has(item.id)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-100 border-2 border-black text-xs font-bold hover:bg-yellow-200 transition disabled:opacity-50"
+                      >
+                        <Icon name="archive" size={14} />
+                        {savingIds.has(item.id) ? 'Saving…' : 'Save to Keep'}
+                      </button>
+                    ) : (
+                      <span />
+                    )}
+                    {!item.is_read && (
                       <button
                         onClick={() => markRead(item.id)}
                         className="text-xs font-medium text-gray-600 hover:text-gray-900 underline"
                       >
                         Mark as read
                       </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               )
             })

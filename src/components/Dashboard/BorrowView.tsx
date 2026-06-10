@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/context/AuthContext'
+import { useToast } from '@/context/ToastContext'
 import { supabase } from '@/lib/supabase'
+import { getLinksByStatus, updateLink, deleteLink } from '@/lib/dataService'
 import { Link, SavedItem, BorrowCategory } from '@/types'
 import { Icon } from '../shared/Icon'
 
@@ -26,6 +28,7 @@ interface BorrowViewProps {
 
 export function BorrowView({ onBack }: BorrowViewProps) {
   const { user } = useAuth()
+  const toast = useToast()
   const [filter, setFilter] = useState<FilterType>('all')
   const [items, setItems] = useState<BorrowItem[]>([])
   const [categories, setCategories] = useState<BorrowCategory[]>([])
@@ -65,27 +68,23 @@ export function BorrowView({ onBack }: BorrowViewProps) {
 
   const loadData = async () => {
     if (!user) return
+    const isPremium = user.is_premium ?? false
 
     try {
-      const [linksRes, savedRes, categoriesRes] = await Promise.all([
-        supabase
-          .from('links')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('status', 'borrow')
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('saved_items')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('status', 'borrow')
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('borrow_categories')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('position'),
+      // Links: route through dataService (local for free, cloud for paid)
+      const borrowedLinks = await getLinksByStatus(isPremium, user.id, 'borrow')
+
+      // saved_items are always cloud (extension = Pro feature)
+      const [savedRes, categoriesRes] = await Promise.all([
+        isPremium
+          ? supabase.from('saved_items').select('*').eq('user_id', user.id).eq('status', 'borrow').order('created_at', { ascending: false })
+          : Promise.resolve({ data: [] }),
+        isPremium
+          ? supabase.from('borrow_categories').select('*').eq('user_id', user.id).order('position')
+          : Promise.resolve({ data: [] }),
       ])
+
+      const linksRes = { data: borrowedLinks }
 
       const linkItems: BorrowItem[] = (linksRes.data || []).map((link: Link) => ({
         id: link.id,
@@ -118,7 +117,7 @@ export function BorrowView({ onBack }: BorrowViewProps) {
       setItems(allItems)
       setCategories(categoriesRes.data || [])
     } catch (error) {
-      console.error('Failed to load borrow data:', error)
+      toast.error('Failed to load Borrow items')
     } finally {
       setIsLoading(false)
     }
@@ -147,41 +146,52 @@ export function BorrowView({ onBack }: BorrowViewProps) {
 
       if (error) throw error
       setIsEditingCategory(false)
+      toast.success('Category created')
       loadData()
     } catch (error) {
-      console.error('Failed to create category:', error)
+      toast.error('Failed to create category')
     }
   }
 
   const handleMoveItem = async (itemId: string, itemType: 'link' | 'saved_item', newStatus: string) => {
+    if (!user) return
+    const isPremium = user.is_premium ?? false
     try {
-      const table = itemType === 'link' ? 'links' : 'saved_items'
-      const { error } = await supabase.from(table).update({ status: newStatus }).eq('id', itemId)
-
-      if (error) throw error
+      if (itemType === 'link') {
+        await updateLink(isPremium, user.id, itemId, { status: newStatus as Link['status'] })
+      } else {
+        const { error } = await supabase.from('saved_items').update({ status: newStatus }).eq('id', itemId)
+        if (error) throw error
+      }
       setActiveMenu(null)
+      toast.success(`Moved to ${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}`)
       loadData()
     } catch (error) {
-      console.error('Failed to move item:', error)
+      toast.error('Failed to move item')
     }
   }
 
   const handleDeleteItem = async (itemId: string, itemType: 'link' | 'saved_item') => {
+    if (!user) return
+    const isPremium = user.is_premium ?? false
     try {
-      const table = itemType === 'link' ? 'links' : 'saved_items'
-      const { error } = await supabase.from(table).delete().eq('id', itemId)
-
-      if (error) throw error
+      if (itemType === 'link') {
+        await deleteLink(isPremium, user.id, itemId)
+      } else {
+        const { error } = await supabase.from('saved_items').delete().eq('id', itemId)
+        if (error) throw error
+      }
       setActiveMenu(null)
+      toast.success('Item deleted')
       loadData()
     } catch (error) {
-      console.error('Failed to delete item:', error)
+      toast.error('Failed to delete item')
     }
   }
 
   const handleCopyUrl = (url?: string) => {
     if (!url) return
-    navigator.clipboard.writeText(url)
+    navigator.clipboard.writeText(url).then(() => toast.info('URL copied')).catch(() => {})
     setActiveMenu(null)
   }
 
@@ -287,7 +297,7 @@ export function BorrowView({ onBack }: BorrowViewProps) {
       </div>
 
       <div className="bg-purple-100 border-b-4 border-black px-6 py-3">
-        <div className="max-w-7xl mx-auto flex gap-2">
+        <div className="max-w-7xl mx-auto flex flex-wrap gap-2">
           <button
             onClick={() => setFilter('all')}
             className={`flex items-center gap-2 px-4 py-2 font-medium border-4 border-black transition ${

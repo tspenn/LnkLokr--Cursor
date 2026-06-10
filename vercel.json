@@ -15,6 +15,10 @@
     "api/stripe/create-checkout-session.ts": {
       "memory": 256,
       "maxDuration": 15
+    },
+    "api/scrape.ts": {
+      "memory": 256,
+      "maxDuration": 10
     }
   },
 

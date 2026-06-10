@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
+import { useToast } from '@/context/ToastContext'
 import { supabase } from '@/lib/supabase'
 import { PURCHASE_URL } from '@/lib/premiumService'
+import { getLinks, getFolders, addLink, deleteLink } from '@/lib/dataService'
 import { Link, Folder } from '@/types'
 import { LinkCard } from './LinkCard'
 import { FolderGrid } from './FolderGrid'
@@ -13,20 +15,25 @@ import { ExportPanel } from './ExportPanel'
 import { BorrowView } from './BorrowView'
 import { ShareView } from './ShareView'
 import { InboxView } from './InboxView'
+import { CloudMigrationModal } from './CloudMigrationModal'
 import { TickerTapeAd } from './TickerTapeAd'
 import { Header } from '../shared/Header'
 import { Icon } from '../shared/Icon'
+import { localStore } from '@/lib/localStore'
 
 type TabView = 'menu' | 'keep' | 'borrow' | 'share' | 'inbox' | 'links' | 'images' | 'files' | 'pdfs' | 'bury'
 
 export function Dashboard() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
+  const toast = useToast()
   const [activeTab, setActiveTab] = useState<TabView>('menu')
   const [links, setLinks] = useState<Link[]>([])
   const [folders, setFolders] = useState<Folder[]>([])
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showExport, setShowExport] = useState(false)
@@ -37,41 +44,62 @@ export function Dashboard() {
   const [showBuryPasswordEntry, setShowBuryPasswordEntry] = useState(false)
   const [passwordError, setPasswordError] = useState('')
   const [inboxCount, setInboxCount] = useState(0)
+  const [migrationData, setMigrationData] = useState<{ links: number; folders: number } | null>(null)
+
+  const loadData = async () => {
+    if (!user) return
+    try {
+      const isPremium = user.is_premium ?? false
+
+      const [fetchedFolders, fetchedLinks] = await Promise.all([
+        getFolders(isPremium, user.id),
+        getLinks(isPremium, user.id),
+      ])
+
+      setFolders(fetchedFolders)
+      // Keep view: only show items with status 'keep' (or no status set)
+      setLinks(fetchedLinks.filter(l => !l.status || l.status === 'keep'))
+
+      // Bury password only exists for cloud (premium) users
+      if (isPremium) {
+        const { data: userRow } = await supabase
+          .from('users')
+          .select('bury_password')
+          .eq('id', user.id)
+          .maybeSingle()
+        if (userRow) setBuryPassword(userRow.bury_password)
+      }
+    } catch (error) {
+      toast.error('Failed to load your links')
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   useEffect(() => {
     if (!user) return
 
-    const loadData = async () => {
-      try {
-        const [folderResponse, linkResponse, userResponse] = await Promise.all([
-          supabase
-            .from('folders')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('position'),
-          supabase
-            .from('links')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false }),
-          supabase
-            .from('users')
-            .select('bury_password')
-            .eq('id', user.id)
-            .maybeSingle(),
-        ])
+    loadData()
 
-        if (folderResponse.data) setFolders(folderResponse.data)
-        if (linkResponse.data) setLinks(linkResponse.data)
-        if (userResponse.data) setBuryPassword(userResponse.data.bury_password)
-      } catch (error) {
-        console.error('Failed to load data:', error)
-      } finally {
-        setIsLoading(false)
-      }
+    // Check if a newly-upgraded premium user has local data to migrate
+    if (user.is_premium) {
+      ;(async () => {
+        await localStore.init()
+        const alreadyMigrated = await localStore.getSetting('cloud_migration_done')
+        if (!alreadyMigrated) {
+          const { links, folders } = await localStore.exportData()
+          if (links.length > 0 || folders.length > 0) {
+            setMigrationData({ links: links.length, folders: folders.length })
+          } else {
+            // No local data — mark done silently
+            await localStore.setSetting('cloud_migration_done', true)
+          }
+        }
+      })()
     }
 
-    loadData()
+    // Realtime sync only applies to cloud (premium) users
+    if (!user.is_premium) return
 
     const channel = supabase
       .channel(`links-${user.id}`)
@@ -87,34 +115,50 @@ export function Dashboard() {
     }
   }, [user])
 
+  // Debounce search 300 ms so we don't re-filter on every keystroke
+  useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+    searchDebounceRef.current = setTimeout(() => setDebouncedSearchQuery(searchQuery), 300)
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+    }
+  }, [searchQuery])
+
   const filteredLinks = links.filter(link => {
     const matchesFolder = !selectedFolderId || link.folder_id === selectedFolderId
-    const matchesSearch = !searchQuery ||
-      link.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      link.url.toLowerCase().includes(searchQuery.toLowerCase())
+    const q = debouncedSearchQuery.toLowerCase()
+    const matchesSearch = !q ||
+      link.title.toLowerCase().includes(q) ||
+      link.url.toLowerCase().includes(q) ||
+      (link.description ?? '').toLowerCase().includes(q) ||
+      (link.tags ?? []).some(t => t.toLowerCase().includes(q))
     return matchesFolder && matchesSearch
   })
 
   const handleAddLink = async (linkData: Partial<Link>) => {
+    if (!user) return
     try {
-      const { error } = await supabase.from('links').insert({
-        ...linkData,
-        user_id: user?.id,
-      })
-      if (error) throw error
+      await addLink(user.is_premium ?? false, user.id, { ...linkData, status: 'keep' })
       setShowAddModal(false)
+      toast.success('Link saved!')
+      // For free users reload manually (no realtime)
+      if (!user.is_premium) await loadData()
     } catch (error) {
-      console.error('Failed to add link:', error)
+      const message = error instanceof Error ? error.message : 'Failed to save link'
+      toast.error(message)
+      throw error
     }
   }
 
   const handleDeleteLink = async (id: string) => {
+    if (!user) return
     try {
-      const { error } = await supabase.from('links').delete().eq('id', id)
-      if (error) throw error
+      await deleteLink(user.is_premium ?? false, user.id, id)
       setLinks(prev => prev.filter(link => link.id !== id))
+      toast.success('Link removed')
     } catch (error) {
-      console.error('Failed to delete link:', error)
+      const message = error instanceof Error ? error.message : 'Failed to delete link'
+      toast.error(message)
     }
   }
 
@@ -384,14 +428,28 @@ export function Dashboard() {
                       </div>
                     ) : (
                       <div className="text-center py-12">
-                        <p className="text-gray-600 mb-4">No links yet</p>
-                        <button
-                          onClick={() => setShowAddModal(true)}
-                          className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition font-medium"
-                        >
-                          <Icon name="plus" size={20} />
-                          Add your first link
-                        </button>
+                        {debouncedSearchQuery ? (
+                          <>
+                            <p className="text-gray-600 mb-2">No links match &ldquo;{debouncedSearchQuery}&rdquo;</p>
+                            <button
+                              onClick={() => setSearchQuery('')}
+                              className="text-sm text-primary-600 hover:underline"
+                            >
+                              Clear search
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-gray-600 mb-4">No links yet</p>
+                            <button
+                              onClick={() => setShowAddModal(true)}
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition font-medium"
+                            >
+                              <Icon name="plus" size={20} />
+                              Add your first link
+                            </button>
+                          </>
+                        )}
                       </div>
                     )}
                   </>
@@ -431,6 +489,19 @@ export function Dashboard() {
 
       {!user?.is_premium && (
         <TickerTapeAd onUpgradeClick={() => setShowSettings(true)} />
+      )}
+
+      {migrationData && user && (
+        <CloudMigrationModal
+          userId={user.id}
+          localLinkCount={migrationData.links}
+          localFolderCount={migrationData.folders}
+          onDone={() => {
+            setMigrationData(null)
+            // Reload from cloud after migration
+            loadData()
+          }}
+        />
       )}
 
       {showBuryPasswordEntry && (
