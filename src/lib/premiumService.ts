@@ -138,12 +138,12 @@ export const FREE_TIER = {
 }
 
 /** Start a Stripe Checkout Session for a paid tier. */
-export async function startCheckout(tierId: TierId, email?: string): Promise<string | null> {
+export async function startCheckout(tierId: TierId, email?: string, userId?: string): Promise<string | null> {
   try {
     const res = await fetch('/api/stripe/create-checkout-session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tier: tierId, email, app_key: APP_KEY }),
+      body: JSON.stringify({ tier: tierId, email, user_id: userId, app_key: APP_KEY }),
     })
 
     if (!res.ok) {

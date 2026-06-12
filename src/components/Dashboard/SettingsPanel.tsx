@@ -48,7 +48,7 @@ export function SettingsPanel({ onClose, onExportClick }: SettingsPanelProps) {
   const handleCheckout = async (tier: TierId) => {
     setCheckoutLoading(tier)
     try {
-      const url = await startCheckout(tier, user?.email)
+      const url = await startCheckout(tier, user?.email, user?.id)
       if (url) {
         window.location.href = url
       } else {

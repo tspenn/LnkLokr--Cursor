@@ -81,29 +81,31 @@ async function handleCreate(req: VercelRequest, res: VercelResponse, redirect: b
     (typeof body.email === 'string' ? body.email : undefined) ??
     (typeof req.query.email === 'string' ? req.query.email : undefined)
 
+  const userId =
+    (typeof body.user_id === 'string' ? body.user_id : undefined) ??
+    (typeof req.query.user_id === 'string' ? req.query.user_id : undefined)
+
+  const sharedMeta: Record<string, string> = {
+    app_key: APP_KEY,
+    tier_key: tier.tierKey,
+    billing_cycle: tier.billingCycle,
+    tier: tierId,
+    ...(userId ? { user_id: userId } : {}),
+  }
+
   try {
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
       customer_email: email,
+      // client_reference_id lets the webhook reliably find the Supabase user
+      ...(userId ? { client_reference_id: userId } : {}),
       allow_promotion_codes: true,
       success_url: `${siteUrl}/?checkout=success&tier=${tierId}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${siteUrl}/?checkout=cancelled&tier=${tierId}`,
-      metadata: {
-        app_key: APP_KEY,
-        tier_key: tier.tierKey,
-        billing_cycle: tier.billingCycle,
-        tier: tierId,
-      },
-      subscription_data: {
-        metadata: {
-          app_key: APP_KEY,
-          tier_key: tier.tierKey,
-          billing_cycle: tier.billingCycle,
-          tier: tierId,
-        },
-      },
+      metadata: sharedMeta,
+      subscription_data: { metadata: sharedMeta },
     })
 
     if (!session.url) {
