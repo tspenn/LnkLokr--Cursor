@@ -1,14 +1,40 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { Folder, Link } from '@/types'
 import { Icon } from '../shared/Icon'
+import { supabase } from '@/lib/supabase'
+
+type ContentMode = 'link' | 'image' | 'file'
+
+const IMAGE_EXT = /\.(jpe?g|png|gif|webp|svg|avif|bmp|ico)(\?.*)?$/i
+
+function looksLikeImageUrl(url: string): boolean {
+  try { return IMAGE_EXT.test(new URL(url).pathname) } catch { return false }
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
 
 interface AddLinkModalProps {
   folders: Folder[]
+  isPremium: boolean
+  userId: string
+  currentStatus?: 'keep' | 'borrow' | 'share' | 'bury'
   onAdd: (link: Partial<Link>) => void
   onClose: () => void
 }
 
-export function AddLinkModal({ folders, onAdd, onClose }: AddLinkModalProps) {
+export function AddLinkModal({
+  folders,
+  isPremium,
+  userId,
+  currentStatus = 'keep',
+  onAdd,
+  onClose,
+}: AddLinkModalProps) {
+  const [mode, setMode] = useState<ContentMode>('link')
   const [formData, setFormData] = useState({
     url: '',
     title: '',
@@ -20,256 +46,527 @@ export function AddLinkModal({ folders, onAdd, onClose }: AddLinkModalProps) {
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isScraping, setIsScraping] = useState(false)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [filePreview, setFilePreview] = useState<string | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
   const scrapeDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const scrapeUrl = async (url: string) => {
-    try {
-      new URL(url)
-    } catch {
-      return
+  // ── Clipboard paste (Ctrl+V anywhere in modal) ────────────────────────────
+  const handlePaste = useCallback((e: ClipboardEvent) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault()
+        const file = item.getAsFile()
+        if (file) { setMode('image'); applyFile(file) }
+        return
+      }
     }
+
+    const text = e.clipboardData?.getData('text') ?? ''
+    if (text.startsWith('http') && looksLikeImageUrl(text)) {
+      setMode('image')
+      applyImageUrl(text)
+    }
+  }, [])
+
+  useEffect(() => {
+    window.addEventListener('paste', handlePaste)
+    return () => window.removeEventListener('paste', handlePaste)
+  }, [handlePaste])
+
+  // ── Scraping ──────────────────────────────────────────────────────────────
+  const scrapeUrl = async (url: string) => {
+    try { new URL(url) } catch { return }
     setIsScraping(true)
     try {
       const res = await fetch(`/api/scrape?url=${encodeURIComponent(url)}`)
       if (!res.ok) return
       const meta = await res.json()
+      if (meta.content_type === 'image') {
+        setMode('image')
+        setImagePreview(url)
+      }
       setFormData(prev => ({
         ...prev,
         title: prev.title || meta.title || '',
         description: prev.description || meta.description || '',
       }))
-    } catch {
-      // Non-fatal — user can fill in manually
-    } finally {
+    } catch { /* non-fatal */ } finally {
       setIsScraping(false)
     }
   }
 
-  const handleUrlChange = (url: string) => {
-    setFormData(prev => ({ ...prev, url }))
+  const debounce = (url: string) => {
     if (scrapeDebounce.current) clearTimeout(scrapeDebounce.current)
     scrapeDebounce.current = setTimeout(() => scrapeUrl(url), 800)
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const applyImageUrl = (url: string) => {
+    setFormData(prev => ({ ...prev, url }))
+    if (looksLikeImageUrl(url)) setImagePreview(url)
+    debounce(url)
+  }
+
+  // ── File helpers ──────────────────────────────────────────────────────────
+  const applyFile = (file: File) => {
+    setSelectedFile(file)
+    setError('')
+    setFormData(prev => ({
+      ...prev,
+      title: prev.title || file.name.replace(/\.[^/.]+$/, ''),
+    }))
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader()
+      reader.onload = (e) => setFilePreview(e.target?.result as string)
+      reader.readAsDataURL(file)
+    } else {
+      setFilePreview(null)
+    }
+  }
+
+  const clearFile = () => {
+    setSelectedFile(null)
+    setFilePreview(null)
+    setImagePreview(null)
+    setFormData(prev => ({ ...prev, url: '' }))
+  }
+
+  // ── Drag & drop ───────────────────────────────────────────────────────────
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    const file = e.dataTransfer.files[0]
+    if (!file) return
+    setMode(file.type.startsWith('image/') ? 'image' : 'file')
+    applyFile(file)
+  }
+
+  // ── Upload to Supabase Storage ────────────────────────────────────────────
+  const uploadFile = async (file: File): Promise<{ storage_path: string; public_url: string }> => {
+    const ext = file.name.split('.').pop() ?? 'bin'
+    const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+    const { error: upErr } = await supabase.storage
+      .from('saved-images')
+      .upload(path, file, { contentType: file.type, upsert: false })
+    if (upErr) throw new Error(`Upload failed: ${upErr.message}`)
+    const { data: { publicUrl } } = supabase.storage.from('saved-images').getPublicUrl(path)
+    return { storage_path: path, public_url: publicUrl }
+  }
+
+  const insertSavedItem = async (
+    storage_path: string,
+    public_url: string,
+    file: File,
+    contentType: string,
+  ) => {
+    const { error } = await supabase.from('saved_items').insert({
+      user_id: userId,
+      storage_path,
+      public_url,
+      original_src: '',
+      title: formData.title,
+      mime_type: file.type,
+      file_size: file.size,
+      file_name: file.name,
+      content_type: contentType,
+      status: currentStatus,
+      folder_id: formData.folder_id,
+      thumbnail_url: file.type.startsWith('image/') ? public_url : null,
+      description: formData.description || null,
+    })
+    if (error) throw new Error(error.message)
+  }
+
+  // ── Submit handlers ───────────────────────────────────────────────────────
+  const handleSubmitLink = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-
-    if (!formData.url || !formData.title) {
-      setError('URL and title are required')
-      return
-    }
-
-    try {
-      new URL(formData.url)
-    } catch {
-      setError('Invalid URL')
-      return
-    }
-
+    if (!formData.url || !formData.title) { setError('URL and title are required'); return }
+    try { new URL(formData.url) } catch { setError('Invalid URL'); return }
     setIsLoading(true)
     try {
-      // Fetch final metadata server-side at save time to capture thumbnail_url
       let thumbnail_url: string | null = null
       let icon: string | null = null
       try {
         const res = await fetch(`/api/scrape?url=${encodeURIComponent(formData.url)}`)
-        if (res.ok) {
-          const meta = await res.json()
-          thumbnail_url = meta.thumbnail_url ?? null
-          icon = meta.icon ?? null
-        }
+        if (res.ok) { const m = await res.json(); thumbnail_url = m.thumbnail_url ?? null; icon = m.icon ?? null }
       } catch { /* non-fatal */ }
-
-      await onAdd({
-        ...formData,
-        thumbnail_url,
-        icon,
-        is_favorite: false,
-      })
+      await onAdd({ ...formData, thumbnail_url, icon, content_type: 'url', is_favorite: false, status: currentStatus })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add link')
-    } finally {
-      setIsLoading(false)
-    }
+      setError(err instanceof Error ? err.message : 'Failed to save link')
+    } finally { setIsLoading(false) }
+  }
+
+  const handleSubmitImage = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    if (!formData.title) { setError('Title is required'); return }
+    setIsLoading(true)
+    try {
+      if (selectedFile) {
+        if (!isPremium) { setError('File upload requires a Pro account'); return }
+        const { storage_path, public_url } = await uploadFile(selectedFile)
+        await insertSavedItem(storage_path, public_url, selectedFile, 'image')
+        onClose()
+      } else if (formData.url) {
+        try { new URL(formData.url) } catch { setError('Invalid image URL'); return }
+        await onAdd({ ...formData, thumbnail_url: imagePreview, content_type: 'image', is_favorite: false, status: currentStatus })
+      } else {
+        setError('Paste an image URL or upload a file')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save image')
+    } finally { setIsLoading(false) }
+  }
+
+  const handleSubmitFile = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    if (!isPremium) { setError('File upload requires a Pro account'); return }
+    if (!selectedFile) { setError('Please select a file'); return }
+    if (!formData.title) { setError('Title is required'); return }
+    setIsLoading(true)
+    try {
+      const { storage_path, public_url } = await uploadFile(selectedFile)
+      const ext = selectedFile.name.split('.').pop()?.toLowerCase()
+      const contentType = selectedFile.type.startsWith('image/') ? 'image' : ext === 'pdf' ? 'pdf' : 'file'
+      await insertSavedItem(storage_path, public_url, selectedFile, contentType)
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to upload file')
+    } finally { setIsLoading(false) }
   }
 
   const handleAddTag = () => {
     if (tagInput.trim() && !formData.tags.includes(tagInput.trim())) {
-      setFormData(prev => ({
-        ...prev,
-        tags: [...prev.tags, tagInput.trim()],
-      }))
+      setFormData(prev => ({ ...prev, tags: [...prev.tags, tagInput.trim()] }))
       setTagInput('')
     }
   }
 
-  const handleRemoveTag = (tag: string) => {
-    setFormData(prev => ({
-      ...prev,
-      tags: prev.tags.filter(t => t !== tag),
-    }))
-  }
+  // ── Derived ───────────────────────────────────────────────────────────────
+  const onSubmit = mode === 'link' ? handleSubmitLink : mode === 'image' ? handleSubmitImage : handleSubmitFile
+  const submitLabel = isLoading
+    ? 'Saving…'
+    : mode === 'link' ? 'Save Link' : mode === 'image' ? 'Save Image' : 'Upload File'
+
+  const canSubmit = !isLoading && (
+    mode === 'link' ? (!!formData.url && !!formData.title) :
+    mode === 'image' ? (!!formData.title && (!!formData.url || !!selectedFile)) :
+    (!!selectedFile && !!formData.title)
+  )
+
+  const preview = imagePreview || filePreview
+
+  // ── Common fields (title, description, folder, tags) ─────────────────────
+  const commonFields = (
+    <>
+      <div className="space-y-2">
+        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
+          Title <span className="text-error-500">*</span>
+        </label>
+        <input
+          type="text"
+          value={formData.title}
+          onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+          placeholder="Enter title"
+          disabled={isLoading}
+          className="input-field"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">Description</label>
+        <textarea
+          value={formData.description}
+          onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+          placeholder="Optional description"
+          disabled={isLoading}
+          rows={2}
+          className="input-field resize-none"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">Folder</label>
+        <select
+          value={formData.folder_id || ''}
+          onChange={(e) => setFormData(prev => ({ ...prev, folder_id: e.target.value || null }))}
+          disabled={isLoading}
+          className="input-field"
+        >
+          <option value="">No folder</option>
+          {folders.map(f => (
+            <option key={f.id} value={f.id}>{f.icon} {f.name}</option>
+          ))}
+        </select>
+      </div>
+
+      {mode === 'link' && (
+        <div className="space-y-2">
+          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">Tags</label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
+              placeholder="Add a tag"
+              disabled={isLoading}
+              className="input-field flex-1"
+            />
+            <button type="button" onClick={handleAddTag} disabled={isLoading || !tagInput.trim()} className="btn btn-secondary btn-md">
+              <Icon name="plus" size={16} />
+            </button>
+          </div>
+          {formData.tags.length > 0 && (
+            <div className="flex gap-2 flex-wrap pt-1">
+              {formData.tags.map(tag => (
+                <span key={tag} className="badge badge-primary">
+                  {tag}
+                  <button type="button" onClick={() => setFormData(prev => ({ ...prev, tags: prev.tags.filter(t => t !== tag) }))} className="ml-1">×</button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  )
 
   return (
     <div className="modal-overlay animate-fade-in" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal-content max-w-lg w-full animate-scale-in">
-        <div className="sticky top-0 flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Add New Link</h2>
-          <button
-            onClick={onClose}
-            className="btn btn-ghost p-2"
-            aria-label="Close modal"
-          >
+
+        {/* Header */}
+        <div className="sticky top-0 flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 z-10">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Save to LnkLokr</h2>
+          <button onClick={onClose} className="btn btn-ghost p-2" aria-label="Close">
             <Icon name="x" size={20} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        {/* Mode tabs */}
+        <div className="flex border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-6">
+          {([
+            { id: 'link' as ContentMode, label: 'Link', icon: 'link' },
+            { id: 'image' as ContentMode, label: 'Image', icon: 'image' },
+            { id: 'file' as ContentMode, label: 'File', icon: 'file', pro: true },
+          ]).map(tab => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => { setMode(tab.id); setError('') }}
+              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                mode === tab.id
+                  ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+              }`}
+            >
+              <Icon name={tab.icon as Parameters<typeof Icon>[0]['name']} size={15} />
+              {tab.label}
+              {tab.pro && !isPremium && (
+                <span className="text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-1.5 py-0.5 rounded-full">Pro</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        <form onSubmit={onSubmit} className="p-6 space-y-5">
           {error && (
-            <div className="flex gap-3 p-4 bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 rounded-xl text-error-700 dark:text-error-300 text-sm animate-slide-down">
-              <Icon name="alert-circle" size={20} className="flex-shrink-0" />
-              <span className="font-medium">{error}</span>
+            <div className="flex gap-3 p-4 bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 rounded-xl text-error-700 dark:text-error-300 text-sm">
+              <Icon name="alert-circle" size={18} className="flex-shrink-0 mt-0.5" />
+              <span>{error}</span>
             </div>
           )}
 
-          <div className="space-y-2">
-            <label htmlFor="url-input" className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
-              URL <span className="text-error-500">*</span>
-            </label>
-            <div className="relative">
-              <input
-                id="url-input"
-                type="url"
-                value={formData.url}
-                onChange={(e) => handleUrlChange(e.target.value)}
-                placeholder="https://example.com"
-                required
-                disabled={isLoading}
-                className="input-field pr-10"
-              />
-              {isScraping && (
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 animate-pulse">
-                  Fetching…
+          {/* ── LINK MODE ── */}
+          {mode === 'link' && (
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                URL <span className="text-error-500">*</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="url"
+                  value={formData.url}
+                  onChange={(e) => {
+                    setFormData(prev => ({ ...prev, url: e.target.value }))
+                    debounce(e.target.value)
+                  }}
+                  placeholder="https://example.com"
+                  disabled={isLoading}
+                  autoFocus
+                  className="input-field pr-20"
+                />
+                {isScraping && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 animate-pulse">Fetching…</span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── IMAGE MODE ── */}
+          {mode === 'image' && (
+            <div className="space-y-4">
+              {/* Paste hint */}
+              <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl text-blue-700 dark:text-blue-300 text-sm">
+                <Icon name="clipboard" size={15} className="flex-shrink-0" />
+                <span>
+                  Press <kbd className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-800 rounded text-xs font-mono">Ctrl+V</kbd> to paste a copied image or image URL
                 </span>
+              </div>
+
+              {/* Preview */}
+              {preview && (
+                <div className="relative rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center min-h-32">
+                  <img
+                    src={preview}
+                    alt="Preview"
+                    className="max-h-56 max-w-full object-contain"
+                    onError={() => { setImagePreview(null); setFilePreview(null) }}
+                  />
+                  <button
+                    type="button"
+                    onClick={clearFile}
+                    className="absolute top-2 right-2 btn btn-ghost p-1.5 bg-white/80 dark:bg-gray-800/80 rounded-full shadow"
+                  >
+                    <Icon name="x" size={13} />
+                  </button>
+                </div>
+              )}
+
+              {/* Image URL input (when no file selected) */}
+              {!selectedFile && (
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">Image URL</label>
+                  <div className="relative">
+                    <input
+                      type="url"
+                      value={formData.url}
+                      onChange={(e) => applyImageUrl(e.target.value)}
+                      placeholder="https://example.com/photo.jpg"
+                      disabled={isLoading}
+                      autoFocus={!preview}
+                      className="input-field pr-20"
+                    />
+                    {isScraping && (
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 animate-pulse">Fetching…</span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Upload drop zone (no file yet, no URL yet) */}
+              {!formData.url && !selectedFile && (
+                <div
+                  onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onDrop={handleDrop}
+                  onClick={() => isPremium && fileInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors ${
+                    isDragging ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-300 dark:border-gray-600'
+                  } ${isPremium ? 'cursor-pointer hover:border-primary-400' : 'opacity-60 cursor-default'}`}
+                >
+                  <Icon name="upload-cloud" size={30} className="mx-auto mb-2 text-gray-400" />
+                  {isPremium ? (
+                    <>
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Drop an image or click to upload</p>
+                      <p className="text-xs text-gray-400 mt-1">JPG, PNG, GIF, WebP</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Image upload requires Pro</p>
+                      <p className="text-xs text-gray-400 mt-1">Paste an image URL above — free for all users</p>
+                    </>
+                  )}
+                  <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
+                    onChange={(e) => e.target.files?.[0] && applyFile(e.target.files[0])} />
+                </div>
+              )}
+
+              {/* Selected file info */}
+              {selectedFile && (
+                <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl text-sm">
+                  <Icon name="image" size={18} className="text-gray-400 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-800 dark:text-gray-200 truncate">{selectedFile.name}</p>
+                    <p className="text-xs text-gray-400">{formatBytes(selectedFile.size)}</p>
+                  </div>
+                  <button type="button" onClick={clearFile} className="btn btn-ghost p-1">
+                    <Icon name="x" size={13} />
+                  </button>
+                </div>
               )}
             </div>
-          </div>
+          )}
 
-          <div className="space-y-2">
-            <label htmlFor="title-input" className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
-              Title <span className="text-error-500">*</span>
-            </label>
-            <input
-              id="title-input"
-              type="text"
-              value={formData.title}
-              onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-              placeholder="Enter link title"
-              required
-              disabled={isLoading}
-              className="input-field"
-            />
-          </div>
+          {/* ── FILE MODE ── */}
+          {mode === 'file' && (
+            <div className="space-y-4">
+              {!isPremium ? (
+                <div className="text-center py-10">
+                  <Icon name="lock" size={40} className="mx-auto mb-3 text-amber-400" />
+                  <p className="font-semibold text-gray-800 dark:text-gray-200 mb-1">File upload requires Pro</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">Save PDFs, documents, and files to any Keep / Borrow / Share / Bury folder.</p>
+                  <a href="/upgrade" className="btn btn-primary btn-md">Upgrade to Pro</a>
+                </div>
+              ) : (
+                <>
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+                    onDragLeave={() => setIsDragging(false)}
+                    onDrop={handleDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
+                      isDragging ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-300 dark:border-gray-600 hover:border-primary-400'
+                    }`}
+                  >
+                    <Icon name="upload-cloud" size={36} className="mx-auto mb-3 text-gray-400" />
+                    <p className="font-medium text-gray-700 dark:text-gray-300">Drop a file here or click to browse</p>
+                    <p className="text-xs text-gray-400 mt-1">PDF, DOC, XLS, images, ZIP and more</p>
+                    <input ref={fileInputRef} type="file" className="hidden"
+                      onChange={(e) => e.target.files?.[0] && applyFile(e.target.files[0])} />
+                  </div>
 
-          <div className="space-y-2">
-            <label htmlFor="description-input" className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
-              Description
-            </label>
-            <textarea
-              id="description-input"
-              value={formData.description}
-              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-              placeholder="Add a description (optional)"
-              disabled={isLoading}
-              rows={3}
-              className="input-field resize-none"
-            />
-          </div>
+                  {selectedFile && (
+                    <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl text-sm">
+                      <Icon name="file" size={18} className="text-gray-400 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-800 dark:text-gray-200 truncate">{selectedFile.name}</p>
+                        <p className="text-xs text-gray-400">{formatBytes(selectedFile.size)} · {selectedFile.type || 'unknown type'}</p>
+                      </div>
+                      <button type="button" onClick={clearFile} className="btn btn-ghost p-1">
+                        <Icon name="x" size={13} />
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
-          <div className="space-y-2">
-            <label htmlFor="folder-select" className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
-              Folder
-            </label>
-            <select
-              id="folder-select"
-              value={formData.folder_id || ''}
-              onChange={(e) => setFormData(prev => ({ ...prev, folder_id: e.target.value || null }))}
-              disabled={isLoading}
-              className="input-field"
-            >
-              <option value="">No folder</option>
-              {folders.map(folder => (
-                <option key={folder.id} value={folder.id}>
-                  {folder.icon} {folder.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Common fields */}
+          {(mode !== 'file' || isPremium) && commonFields}
 
-          <div className="space-y-2">
-            <label htmlFor="tag-input" className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
-              Tags
-            </label>
-            <div className="flex gap-2">
-              <input
-                id="tag-input"
-                type="text"
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
-                placeholder="Add a tag"
-                disabled={isLoading}
-                className="input-field flex-1"
-              />
-              <button
-                type="button"
-                onClick={handleAddTag}
-                disabled={isLoading || !tagInput.trim()}
-                className="btn btn-secondary btn-md"
-              >
-                <Icon name="plus" size={16} />
+          {/* Actions */}
+          {(mode !== 'file' || isPremium) && (
+            <div className="flex gap-3 pt-2">
+              <button type="submit" disabled={!canSubmit} className="flex-1 btn btn-lg btn-primary">
+                {isLoading
+                  ? <span className="flex items-center justify-center gap-2"><Icon name="loader" size={15} className="animate-spin" />{submitLabel}</span>
+                  : submitLabel}
+              </button>
+              <button type="button" onClick={onClose} disabled={isLoading} className="flex-1 btn btn-lg btn-secondary">
+                Cancel
               </button>
             </div>
-            {formData.tags.length > 0 && (
-              <div className="flex gap-2 flex-wrap pt-2">
-                {formData.tags.map(tag => (
-                  <span
-                    key={tag}
-                    className="badge badge-primary"
-                  >
-                    {tag}
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveTag(tag)}
-                      className="ml-1 hover:text-primary-900 dark:hover:text-primary-100"
-                      aria-label={`Remove ${tag} tag`}
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="flex gap-3 pt-4">
-            <button
-              type="submit"
-              disabled={isLoading || !formData.url || !formData.title}
-              className="flex-1 btn btn-lg btn-primary"
-            >
-              {isLoading ? 'Adding...' : 'Add Link'}
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isLoading}
-              className="flex-1 btn btn-lg btn-secondary"
-            >
-              Cancel
-            </button>
-          </div>
+          )}
         </form>
       </div>
     </div>

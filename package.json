@@ -8,7 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "vercel-build": "npm run build",
-    "ext:build": "cross-env BUILD_TARGET=extension vite build --base=./"
+    "ext:build": "cross-env BUILD_TARGET=extension vite build --base=./ && xcopy /Y icons\\icon-16.png dist-extension\\icons\\ && xcopy /Y icons\\icon-48.png dist-extension\\icons\\ && xcopy /Y icons\\icon-128.png dist-extension\\icons\\"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.1",

@@ -141,7 +141,10 @@ async function saveFileToLnklokr(blob, metadata) {
         page_url: metadata.pageUrl || '',
         mime_type: blob.type,
         file_size: blob.size,
+        file_name: originalFilename,
         content_type: contentType,
+        status: 'keep',
+        thumbnail_url: contentType === 'image' ? publicUrlData.publicUrl : null,
       })
       .select('id')
       .single()

@@ -471,6 +471,14 @@ export function Dashboard() {
       {showAddModal && (
         <AddLinkModal
           folders={folders}
+          isPremium={user?.is_premium ?? false}
+          userId={user?.id ?? ''}
+          currentStatus={
+            activeTab === 'borrow' ? 'borrow'
+            : activeTab === 'share' ? 'share'
+            : activeTab === 'bury' ? 'bury'
+            : 'keep'
+          }
           onAdd={handleAddLink}
           onClose={() => setShowAddModal(false)}
         />
