@@ -416,7 +416,7 @@ export function AddLinkModal({
             <div className="space-y-4">
               {/* Paste hint */}
               <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl text-blue-700 dark:text-blue-300 text-sm">
-                <Icon name="clipboard" size={15} className="flex-shrink-0" />
+                <Icon name="copy" size={15} className="flex-shrink-0" />
                 <span>
                   Press <kbd className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-800 rounded text-xs font-mono">Ctrl+V</kbd> to paste a copied image or image URL
                 </span>
@@ -473,7 +473,7 @@ export function AddLinkModal({
                     isDragging ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-300 dark:border-gray-600'
                   } ${isPremium ? 'cursor-pointer hover:border-primary-400' : 'opacity-60 cursor-default'}`}
                 >
-                  <Icon name="upload-cloud" size={30} className="mx-auto mb-2 text-gray-400" />
+                  <Icon name="upload" size={30} className="mx-auto mb-2 text-gray-400" />
                   {isPremium ? (
                     <>
                       <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Drop an image or click to upload</p>
@@ -527,7 +527,7 @@ export function AddLinkModal({
                       isDragging ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-300 dark:border-gray-600 hover:border-primary-400'
                     }`}
                   >
-                    <Icon name="upload-cloud" size={36} className="mx-auto mb-3 text-gray-400" />
+                    <Icon name="upload" size={36} className="mx-auto mb-3 text-gray-400" />
                     <p className="font-medium text-gray-700 dark:text-gray-300">Drop a file here or click to browse</p>
                     <p className="text-xs text-gray-400 mt-1">PDF, DOC, XLS, images, ZIP and more</p>
                     <input ref={fileInputRef} type="file" className="hidden"
