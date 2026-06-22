@@ -13,7 +13,6 @@ import { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { addLink } from '@/lib/dataService'
-import { supabase } from '@/lib/supabase'
 import { Icon } from './shared/Icon'
 
 type Status = 'keep' | 'borrow' | 'share' | 'bury'
@@ -117,7 +116,7 @@ export function ShareTarget() {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-gradient-to-b from-cyan-100 via-pink-50 to-pink-200 gap-4 px-6">
         <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center shadow-lg">
-          <Icon name="check" size={32} className="text-white" />
+          <Icon name="check-circle" size={32} className="text-white" />
         </div>
         <p className="text-2xl font-bold text-gray-900">Saved to {CATEGORIES.find(c => c.value === status)?.label}!</p>
         <p className="text-sm text-gray-600">Returning to LnkLokr…</p>

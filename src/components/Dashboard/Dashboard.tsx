@@ -80,22 +80,6 @@ export function Dashboard() {
 
     loadData()
 
-    // Check if a newly-upgraded premium user has local data to migrate
-    if (user.is_premium) {
-      ;(async () => {
-        await localStore.init()
-        const alreadyMigrated = await localStore.getSetting('cloud_migration_done')
-        if (!alreadyMigrated) {
-          const { links, folders } = await localStore.exportData()
-          if (links.length > 0 || folders.length > 0) {
-            setMigrationData({ links: links.length, folders: folders.length })
-          } else {
-            // No local data — mark done silently
-            await localStore.setSetting('cloud_migration_done', true)
-          }
-        }
-      })()
-    }
 
     // Realtime sync only applies to cloud (premium) users
     if (!user.is_premium) return
