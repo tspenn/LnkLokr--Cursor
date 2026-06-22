@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Download, ArrowLeft, Type, Image as ImageIcon, Trash2 } from 'lucide-react'
+import { Download, ArrowLeft, Type, Image as ImageIcon, Trash2, Save } from 'lucide-react'
 
 interface BoardItem {
   id: string
@@ -22,8 +22,39 @@ interface DragState {
   startItemY: number
 }
 
+interface SavedBoard {
+  id: string
+  title: string
+  items: BoardItem[]
+  updatedAt: string
+}
+
+function listBoards(): SavedBoard[] {
+  try {
+    const raw = localStorage.getItem('dreamkeeper_boards')
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+function loadBoard(id: string): SavedBoard | null {
+  const boards = listBoards()
+  return boards.find(b => b.id === id) ?? null
+}
+
+function saveBoard(board: SavedBoard) {
+  const boards = listBoards().filter(b => b.id !== board.id)
+  boards.unshift({ ...board, updatedAt: new Date().toISOString() })
+  localStorage.setItem('dreamkeeper_boards', JSON.stringify(boards))
+}
+
+function generateId() {
+  return Math.random().toString(36).slice(2) + Date.now().toString(36)
+}
+
 export function DreamKeeper() {
-  const { id: _boardId } = useParams()
+  const { id: boardId } = useParams()
   const navigate = useNavigate()
   const canvasRef = useRef<HTMLDivElement>(null)
   const [title, setTitle] = useState('My Dream Keeper')
@@ -32,6 +63,42 @@ export function DreamKeeper() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [dragState, setDragState] = useState<DragState | null>(null)
   const [isExporting, setIsExporting] = useState(false)
+  const [savedAt, setSavedAt] = useState<string | null>(null)
+  const [allBoards, setAllBoards] = useState<SavedBoard[]>([])
+  const [showBoardList, setShowBoardList] = useState(false)
+  const autoSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // On mount: if no boardId, create a new one and redirect
+  useEffect(() => {
+    if (!boardId) {
+      navigate(`/dreamkeeper/${generateId()}`, { replace: true })
+      return
+    }
+    const saved = loadBoard(boardId)
+    if (saved) {
+      setTitle(saved.title)
+      setItems(saved.items)
+      setSavedAt(saved.updatedAt)
+    }
+    setAllBoards(listBoards())
+  }, [boardId, navigate])
+
+  // Auto-save 1 second after any change
+  const triggerAutoSave = useCallback(() => {
+    if (!boardId) return
+    if (autoSaveRef.current) clearTimeout(autoSaveRef.current)
+    autoSaveRef.current = setTimeout(() => {
+      saveBoard({ id: boardId, title, items, updatedAt: new Date().toISOString() })
+      setSavedAt(new Date().toISOString())
+      setAllBoards(listBoards())
+    }, 1000)
+  }, [boardId, title, items])
+
+  useEffect(() => {
+    if (!boardId) return
+    triggerAutoSave()
+    return () => { if (autoSaveRef.current) clearTimeout(autoSaveRef.current) }
+  }, [title, items, triggerAutoSave, boardId])
 
   const addText = () => {
     const newItem: BoardItem = {
@@ -136,6 +203,27 @@ export function DreamKeeper() {
     }
   }
 
+  const openBoard = (id: string) => {
+    navigate(`/dreamkeeper/${id}`)
+    setShowBoardList(false)
+  }
+
+  const newBoard = () => {
+    navigate(`/dreamkeeper/${generateId()}`)
+    setShowBoardList(false)
+  }
+
+  const deleteBoard = (id: string) => {
+    const boards = listBoards().filter(b => b.id !== id)
+    localStorage.setItem('dreamkeeper_boards', JSON.stringify(boards))
+    setAllBoards(boards)
+    if (id === boardId && boards.length > 0) {
+      navigate(`/dreamkeeper/${boards[0].id}`, { replace: true })
+    } else if (id === boardId) {
+      navigate(`/dreamkeeper/${generateId()}`, { replace: true })
+    }
+  }
+
   return (
     <div
       className="min-h-screen bg-[#f4e9d8] p-6 font-serif select-none"
@@ -158,9 +246,49 @@ export function DreamKeeper() {
             onChange={e => setTitle(e.target.value)}
             className="text-3xl font-bold bg-transparent border-none focus:outline-none text-amber-950 w-80"
           />
+          {savedAt && (
+            <span className="text-xs text-amber-600/70 flex items-center gap-1">
+              <Save size={12} />
+              Saved {new Date(savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap justify-end">
+          {/* Board list toggle */}
+          <div className="relative">
+            <button
+              onClick={() => setShowBoardList(v => !v)}
+              className="flex items-center gap-2 bg-amber-50 hover:bg-amber-100 text-amber-900 px-4 py-2 rounded-xl transition border-2 border-amber-300 text-sm"
+            >
+              Boards ({allBoards.length || 1})
+            </button>
+            {showBoardList && (
+              <div className="absolute top-full right-0 mt-1 bg-white border-4 border-amber-900 shadow-lg z-50 min-w-64">
+                <button
+                  onClick={newBoard}
+                  className="w-full px-4 py-2 text-left hover:bg-amber-50 text-sm font-bold text-amber-900 border-b-2 border-amber-200"
+                >
+                  + New Board
+                </button>
+                {allBoards.map(b => (
+                  <div key={b.id} className={`flex items-center gap-2 px-4 py-2 hover:bg-amber-50 ${b.id === boardId ? 'bg-amber-100' : ''}`}>
+                    <button className="flex-1 text-left text-sm truncate" onClick={() => openBoard(b.id)}>
+                      {b.title}
+                    </button>
+                    {b.id !== boardId && (
+                      <button
+                        onClick={() => deleteBoard(b.id)}
+                        className="text-red-400 hover:text-red-600 text-xs"
+                        title="Delete board"
+                      >✕</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <button
             onClick={addText}
             className="flex items-center gap-2 bg-amber-100 hover:bg-amber-200 text-amber-900 px-4 py-2 rounded-xl transition border-2 border-amber-300"
@@ -264,7 +392,7 @@ export function DreamKeeper() {
       </div>
 
       <p className="text-center text-amber-700/60 mt-6 text-sm font-sans">
-        Drag items to arrange · Double-click text to edit · Export saves a PNG
+        Drag items to arrange · Double-click text to edit · Boards auto-save to this device
       </p>
     </div>
   )

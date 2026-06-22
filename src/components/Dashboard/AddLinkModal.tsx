@@ -401,7 +401,7 @@ export function AddLinkModal({
           {([
             { id: 'link' as ContentMode, label: 'Link', icon: 'link' },
             { id: 'image' as ContentMode, label: 'Image', icon: 'image' },
-            { id: 'file' as ContentMode, label: 'File', icon: 'file', pro: true },
+            { id: 'file' as ContentMode, label: 'File', icon: 'file', pro: false },
           ]).map(tab => (
             <button
               key={tab.id}

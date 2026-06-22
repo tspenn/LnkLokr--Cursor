@@ -37,6 +37,25 @@ function AppContent() {
     }
   }, [location.search, isAuthenticated, navigate])
 
+  // When a logged-out user arrives at /share, save the query params so we can
+  // resume the share flow after they sign in.
+  useEffect(() => {
+    if (!loading && !isAuthenticated && location.pathname === '/share' && location.search) {
+      sessionStorage.setItem('pendingShare', location.search)
+    }
+  }, [loading, isAuthenticated, location.pathname, location.search])
+
+  // After login, check for a pending share and redirect to /share to complete it.
+  useEffect(() => {
+    if (isAuthenticated && !loading) {
+      const pending = sessionStorage.getItem('pendingShare')
+      if (pending) {
+        sessionStorage.removeItem('pendingShare')
+        navigate(`/share${pending}`, { replace: true })
+      }
+    }
+  }, [isAuthenticated, loading, navigate])
+
   // Email confirmation landing — must render before any auth gate
   if (location.pathname === '/auth/confirm') {
     return <ConfirmEmail />
@@ -71,6 +90,8 @@ function AppContent() {
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/dreamkeeper/:id" element={<DreamKeeper />} />
       <Route path="/dreamkeeper" element={<DreamKeeper />} />
+      {/* /upgrade is referenced in some modals — redirect to dashboard */}
+      <Route path="/upgrade" element={<Navigate to="/" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

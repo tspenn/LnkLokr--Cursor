@@ -4,7 +4,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context/ToastContext'
 import { supabase } from '@/lib/supabase'
 import { PURCHASE_URL } from '@/lib/premiumService'
-import { getLinks, getFolders, addLink, deleteLink } from '@/lib/dataService'
+import { getLinks, getFolders, addLink, addFolder, updateLink, deleteLink } from '@/lib/dataService'
 import { Link, Folder } from '@/types'
 import { LinkCard } from './LinkCard'
 import { FolderGrid } from './FolderGrid'
@@ -14,8 +14,8 @@ import { SavedGallery } from './SavedGallery'
 import { ExportPanel } from './ExportPanel'
 import { BorrowView } from './BorrowView'
 import { ShareView } from './ShareView'
-import { CloudMigrationModal } from './CloudMigrationModal'
 import { TickerTapeAd } from './TickerTapeAd'
+import { EditLinkModal } from './EditLinkModal'
 import { Header } from '../shared/Header'
 import { Icon } from '../shared/Icon'
 import { getLinksByStatus } from '@/lib/dataService'
@@ -43,7 +43,10 @@ export function Dashboard() {
   const [buryPasswordInput, setBuryPasswordInput] = useState('')
   const [showBuryPasswordEntry, setShowBuryPasswordEntry] = useState(false)
   const [passwordError, setPasswordError] = useState('')
-  const [migrationData, setMigrationData] = useState<{ links: number; folders: number } | null>(null)
+  const [editingLink, setEditingLink] = useState<import('@/types').Link | null>(null)
+  const [newFolderName, setNewFolderName] = useState('')
+  const [showNewFolder, setShowNewFolder] = useState(false)
+  const [creatingFolder, setCreatingFolder] = useState(false)
 
   const loadData = async () => {
     if (!user) return
@@ -59,15 +62,13 @@ export function Dashboard() {
       // Keep view: only show items with status 'keep' (or no status set)
       setLinks(fetchedLinks.filter(l => !l.status || l.status === 'keep'))
 
-      // Bury password only exists for cloud (premium) users
-      if (isPremium) {
-        const { data: userRow } = await supabase
-          .from('users')
-          .select('bury_password')
-          .eq('id', user.id)
-          .maybeSingle()
-        if (userRow) setBuryPassword(userRow.bury_password)
-      }
+      // Load bury password for all users
+      const { data: userRow } = await supabase
+        .from('users')
+        .select('bury_password')
+        .eq('id', user.id)
+        .maybeSingle()
+      if (userRow) setBuryPassword(userRow.bury_password)
     } catch (error) {
       toast.error('Failed to load your links')
     } finally {
@@ -80,9 +81,6 @@ export function Dashboard() {
 
     loadData()
 
-
-    // Realtime sync only applies to cloud (premium) users
-    if (!user.is_premium) return
 
     const channel = supabase
       .channel(`links-${user.id}`)
@@ -189,6 +187,38 @@ export function Dashboard() {
       toast.success('Removed from Bury')
     } catch {
       toast.error('Failed to delete')
+    }
+  }
+
+  const handleEditLink = async (id: string, updates: Partial<import('@/types').Link>) => {
+    if (!user) return
+    try {
+      await updateLink(user.is_premium ?? false, user.id, id, updates)
+      setLinks(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l))
+      setBuriedLinks(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l))
+      setEditingLink(null)
+      toast.success('Updated!')
+    } catch {
+      toast.error('Failed to update')
+    }
+  }
+
+  const handleCreateFolder = async () => {
+    if (!user || !newFolderName.trim()) return
+    setCreatingFolder(true)
+    try {
+      await addFolder(user.is_premium ?? false, user.id, {
+        name: newFolderName.trim(),
+        position: folders.length,
+      })
+      setNewFolderName('')
+      setShowNewFolder(false)
+      await loadData()
+      toast.success(`Folder "${newFolderName.trim()}" created`)
+    } catch {
+      toast.error('Failed to create folder')
+    } finally {
+      setCreatingFolder(false)
     }
   }
 
@@ -392,23 +422,71 @@ export function Dashboard() {
               <div className="p-6 max-w-7xl mx-auto">
                 {activeTab === 'links' ? (
                   <>
-                    {folders.length > 0 && (
-                      <div className="mb-8">
-                        <h2 className="text-lg font-semibold text-gray-900 mb-4">Folders</h2>
-                        <FolderGrid
-                          folders={folders}
-                          selectedFolderId={selectedFolderId}
-                          onSelectFolder={setSelectedFolderId}
-                        />
-                      </div>
-                    )}
+                    <div className="mb-6">
+                      {folders.length > 0 && (
+                        <div className="mb-6">
+                          <div className="flex items-center justify-between mb-3">
+                            <h2 className="text-lg font-semibold text-gray-900">Folders</h2>
+                            <button
+                              onClick={() => setShowNewFolder(v => !v)}
+                              className="flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700 font-medium"
+                            >
+                              <Icon name="plus" size={15} /> New folder
+                            </button>
+                          </div>
+                          <FolderGrid
+                            folders={folders}
+                            selectedFolderId={selectedFolderId}
+                            onSelectFolder={setSelectedFolderId}
+                          />
+                        </div>
+                      )}
+
+                      {/* New folder input */}
+                      {showNewFolder ? (
+                        <form
+                          onSubmit={e => { e.preventDefault(); handleCreateFolder() }}
+                          className="flex gap-2 mb-4"
+                        >
+                          <input
+                            autoFocus
+                            type="text"
+                            value={newFolderName}
+                            onChange={e => setNewFolderName(e.target.value)}
+                            placeholder="Folder name"
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                          />
+                          <button
+                            type="submit"
+                            disabled={creatingFolder || !newFolderName.trim()}
+                            className="px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition"
+                          >
+                            {creatingFolder ? '…' : 'Create'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setShowNewFolder(false); setNewFolderName('') }}
+                            className="px-3 py-2 text-gray-500 hover:text-gray-700 rounded-lg text-sm"
+                          >
+                            Cancel
+                          </button>
+                        </form>
+                      ) : folders.length === 0 && (
+                        <button
+                          onClick={() => setShowNewFolder(true)}
+                          className="flex items-center gap-1 text-sm text-gray-500 hover:text-primary-600 mb-4 font-medium"
+                        >
+                          <Icon name="plus" size={15} /> Create a folder
+                        </button>
+                      )}
+                    </div>
 
                     {filteredLinks.length > 0 ? (
                       <div>
                         <h2 className="text-lg font-semibold text-gray-900 mb-4">
                           {selectedFolderId && folders.find(f => f.id === selectedFolderId)
                             ? folders.find(f => f.id === selectedFolderId)?.name
-                            : 'All Links'}
+                            : 'All Items'}
                         </h2>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                           {filteredLinks.map(link => (
@@ -416,6 +494,7 @@ export function Dashboard() {
                               key={link.id}
                               link={link}
                               onDelete={() => handleDeleteLink(link.id)}
+                              onEdit={() => setEditingLink(link)}
                             />
                           ))}
                         </div>
@@ -448,9 +527,33 @@ export function Dashboard() {
                     )}
                   </>
                 ) : activeTab === 'files' ? (
-                  <SavedGallery contentType="file" onAdd={() => setShowAddModal(true)} />
+                  <>
+                    {links.filter(l => l.content_type === 'file').length > 0 && (
+                      <div className="mb-8">
+                        <h2 className="text-lg font-semibold text-gray-900 mb-4">Files on this device</h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {links.filter(l => l.content_type === 'file').map(link => (
+                            <LinkCard key={link.id} link={link} onDelete={() => handleDeleteLink(link.id)} onEdit={() => setEditingLink(link)} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <SavedGallery contentType="file" onAdd={() => setShowAddModal(true)} />
+                  </>
                 ) : activeTab === 'pdfs' ? (
-                  <SavedGallery contentType="pdf" onAdd={() => setShowAddModal(true)} />
+                  <>
+                    {links.filter(l => l.content_type === 'pdf').length > 0 && (
+                      <div className="mb-8">
+                        <h2 className="text-lg font-semibold text-gray-900 mb-4">PDFs on this device</h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {links.filter(l => l.content_type === 'pdf').map(link => (
+                            <LinkCard key={link.id} link={link} onDelete={() => handleDeleteLink(link.id)} onEdit={() => setEditingLink(link)} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <SavedGallery contentType="pdf" onAdd={() => setShowAddModal(true)} />
+                  </>
                 ) : activeTab === 'bury' ? (
                   <div className="space-y-8">
                     {buriedLinks.length > 0 && (
@@ -462,6 +565,7 @@ export function Dashboard() {
                               key={link.id}
                               link={link}
                               onDelete={() => handleDeleteBuriedLink(link.id)}
+                              onEdit={() => setEditingLink(link)}
                             />
                           ))}
                         </div>
@@ -519,16 +623,12 @@ export function Dashboard() {
         <TickerTapeAd onUpgradeClick={() => setShowSettings(true)} />
       )}
 
-      {migrationData && user && (
-        <CloudMigrationModal
-          userId={user.id}
-          localLinkCount={migrationData.links}
-          localFolderCount={migrationData.folders}
-          onDone={() => {
-            setMigrationData(null)
-            // Reload from cloud after migration
-            loadData()
-          }}
+      {editingLink && user && (
+        <EditLinkModal
+          link={editingLink}
+          folders={folders}
+          onSave={(updates) => handleEditLink(editingLink.id, updates)}
+          onClose={() => setEditingLink(null)}
         />
       )}
 

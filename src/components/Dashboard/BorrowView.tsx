@@ -196,6 +196,24 @@ export function BorrowView({ onBack, onShowAdd }: BorrowViewProps) {
     setActiveMenu(null)
   }
 
+  const handleAssignCategory = async (itemId: string, itemType: 'link' | 'saved_item', categoryId: string | null) => {
+    if (!user) return
+    const isPremium = user.is_premium ?? false
+    try {
+      if (itemType === 'link') {
+        await updateLink(isPremium, user.id, itemId, { category_id: categoryId })
+      } else {
+        const { error } = await supabase.from('saved_items').update({ category_id: categoryId }).eq('id', itemId)
+        if (error) throw error
+      }
+      setActiveMenu(null)
+      toast.success(categoryId ? 'Category assigned' : 'Category removed')
+      loadData()
+    } catch {
+      toast.error('Failed to assign category')
+    }
+  }
+
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return bytes + ' B'
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
@@ -444,6 +462,27 @@ export function BorrowView({ onBack, onShowAdd }: BorrowViewProps) {
                             </button>
                           </>
                         )}
+                        {categories.length > 0 && (
+                          <div className="border-t border-gray-100">
+                            <p className="px-4 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">Category</p>
+                            <button
+                              onClick={() => handleAssignCategory(item.id, item.type, null)}
+                              className={`w-full px-4 py-2 text-left hover:bg-gray-100 transition text-sm ${!item.category_id ? 'font-bold' : ''}`}
+                            >
+                              None
+                            </button>
+                            {categories.map(cat => (
+                              <button
+                                key={cat.id}
+                                onClick={() => handleAssignCategory(item.id, item.type, cat.id)}
+                                className={`w-full px-4 py-2 text-left hover:bg-gray-100 transition text-sm ${item.category_id === cat.id ? 'font-bold text-purple-700' : ''}`}
+                              >
+                                {item.category_id === cat.id ? '✓ ' : ''}{cat.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <div className="border-t border-gray-100">
                         <button
                           onClick={() => handleMoveItem(item.id, item.type, 'keep')}
                           className="w-full px-4 py-2 text-left hover:bg-gray-100 transition flex items-center gap-2"
@@ -465,6 +504,7 @@ export function BorrowView({ onBack, onShowAdd }: BorrowViewProps) {
                           <Icon name="archive" size={16} />
                           Move to Bury
                         </button>
+                        </div>
                         <button
                           onClick={() => handleDeleteItem(item.id, item.type)}
                           className="w-full px-4 py-2 text-left hover:bg-red-50 text-red-600 transition flex items-center gap-2 border-t-2 border-black"

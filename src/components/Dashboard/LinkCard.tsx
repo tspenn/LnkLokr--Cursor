@@ -9,10 +9,11 @@ import { Icon } from '../shared/Icon'
 interface LinkCardProps {
   link: Link
   onDelete: () => void
+  onEdit?: () => void
   onCopySuccess?: () => void
 }
 
-export function LinkCard({ link, onDelete, onCopySuccess }: LinkCardProps) {
+export function LinkCard({ link, onDelete, onEdit, onCopySuccess }: LinkCardProps) {
   const { user } = useAuth()
   const [isFavorite, setIsFavorite] = useState(link.is_favorite)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -231,6 +232,16 @@ export function LinkCard({ link, onDelete, onCopySuccess }: LinkCardProps) {
           >
             <Icon name="heart" size={14} fill={isFavorite ? 'currentColor' : 'none'} />
           </button>
+          {onEdit && (
+            <button
+              onClick={onEdit}
+              title="Edit"
+              className="btn btn-sm btn-ghost"
+              aria-label="Edit"
+            >
+              <Icon name="edit" size={14} />
+            </button>
+          )}
           <button
             onClick={handleDelete}
             title="Delete"
