@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { localStore } from '@/lib/localStore'
 import { TIERS, startCheckout, openBillingPortal, resolveTierKey, type TierId } from '@/lib/premiumService'
 import { supabase } from '@/lib/supabase'
+import { opfsStore } from '@/lib/opfsStore'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context/ToastContext'
 import { Icon } from '../shared/Icon'
@@ -15,7 +15,7 @@ export function SettingsPanel({ onClose, onExportClick }: SettingsPanelProps) {
   const { user } = useAuth()
   const toast = useToast()
   const [isPremium, setIsPremium] = useState(false)
-  const [stats, setStats] = useState({ total_links: 0, total_folders: 0, total_images: 0, storage_used_mb: 0 })
+  const [stats, setStats] = useState({ total_links: 0, total_folders: 0, local_files: 0 })
   const [newBuryPassword, setNewBuryPassword] = useState('')
   const [confirmBuryPassword, setConfirmBuryPassword] = useState('')
   const [savingPassword, setSavingPassword] = useState(false)
@@ -26,20 +26,21 @@ export function SettingsPanel({ onClose, onExportClick }: SettingsPanelProps) {
 
   useEffect(() => {
     const loadStatus = async () => {
-      const storageStats = await localStore.getStats()
       setIsPremium(user?.is_premium ?? false)
-      setStats(storageStats)
 
       if (user) {
-        const { data } = await supabase
-          .from('users')
-          .select('bury_password')
-          .eq('id', user.id)
-          .maybeSingle()
-
-        if (data && data.bury_password) {
-          setHasBuryPassword(true)
-        }
+        const [linksRes, foldersRes, fileIds, buryRes] = await Promise.all([
+          supabase.from('links').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
+          supabase.from('folders').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
+          opfsStore.isSupported() ? opfsStore.listFileIds(user.id) : Promise.resolve([]),
+          supabase.from('users').select('bury_password').eq('id', user.id).maybeSingle(),
+        ])
+        setStats({
+          total_links: linksRes.count ?? 0,
+          total_folders: foldersRes.count ?? 0,
+          local_files: fileIds.length,
+        })
+        if (buryRes.data?.bury_password) setHasBuryPassword(true)
       }
     }
     loadStatus()
@@ -141,26 +142,23 @@ export function SettingsPanel({ onClose, onExportClick }: SettingsPanelProps) {
           <div>
             <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
               <Icon name="database" size={16} />
-              Local Storage Stats
+              Your Collection
             </h3>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="p-3 bg-blue-50 rounded-lg">
-                <p className="text-gray-600">Links</p>
+            <div className="grid grid-cols-3 gap-3 text-sm">
+              <div className="p-3 bg-blue-50 rounded-lg text-center">
                 <p className="text-xl font-bold text-blue-700">{stats.total_links}</p>
+                <p className="text-xs text-gray-600">Links</p>
               </div>
-              <div className="p-3 bg-green-50 rounded-lg">
-                <p className="text-gray-600">Folders</p>
+              <div className="p-3 bg-green-50 rounded-lg text-center">
                 <p className="text-xl font-bold text-green-700">{stats.total_folders}</p>
+                <p className="text-xs text-gray-600">Folders</p>
               </div>
-              <div className="p-3 bg-purple-50 rounded-lg">
-                <p className="text-gray-600">Images</p>
-                <p className="text-xl font-bold text-purple-700">{stats.total_images}</p>
-              </div>
-              <div className="p-3 bg-orange-50 rounded-lg">
-                <p className="text-gray-600">Storage</p>
-                <p className="text-xl font-bold text-orange-700">{stats.storage_used_mb.toFixed(1)} MB</p>
+              <div className="p-3 bg-indigo-50 rounded-lg text-center">
+                <p className="text-xl font-bold text-indigo-700">{stats.local_files}</p>
+                <p className="text-xs text-gray-600">Local files</p>
               </div>
             </div>
+            <p className="text-xs text-gray-400 mt-2 text-center">Links sync to cloud · Files stored on this device</p>
           </div>
 
           {/* ── Subscription / upgrade section ── */}
@@ -343,6 +341,59 @@ export function SettingsPanel({ onClose, onExportClick }: SettingsPanelProps) {
             </button>
           </div>
 
+          {/* ── File Storage section ── */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <Icon name="hard-drive" size={16} />
+              How File Saving Works
+            </h3>
+            <div className="space-y-2 text-sm">
+
+              {/* Free */}
+              <div className={`p-3 rounded-lg border-2 ${!isPremium ? 'border-blue-300 bg-blue-50' : 'border-gray-200 bg-gray-50'}`}>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="font-semibold text-gray-900">Free</p>
+                  {!isPremium && <span className="text-[10px] bg-blue-500 text-white px-2 py-0.5 rounded-full font-medium">Your plan</span>}
+                </div>
+                <ul className="space-y-1 text-gray-600 text-xs">
+                  <li>✓ Links &amp; metadata saved to cloud — visible on all devices</li>
+                  <li>✓ Images &amp; files saved full-size on <strong>this device only</strong></li>
+                  <li>✓ Thumbnails sync so you can see your files from any device</li>
+                  <li>✓ Download files to a flash drive to move them anywhere</li>
+                  <li className="text-gray-400">✗ Files not accessible on other devices without download/transfer</li>
+                </ul>
+              </div>
+
+              {/* Solo */}
+              <div className={`p-3 rounded-lg border-2 ${isPremium && tierKey === 'solo' ? 'border-pink-300 bg-pink-50' : 'border-gray-200 bg-gray-50'}`}>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="font-semibold text-gray-900">Solo</p>
+                  {isPremium && tierKey === 'solo' && <span className="text-[10px] bg-pink-500 text-white px-2 py-0.5 rounded-full font-medium">Your plan</span>}
+                </div>
+                <ul className="space-y-1 text-gray-600 text-xs">
+                  <li>✓ Everything in Free, plus:</li>
+                  <li>✓ Files uploaded to LnkLokr cloud — access from any device</li>
+                  <li>✓ 2 GB cloud storage for images, PDFs, and documents</li>
+                  <li>✓ No ads</li>
+                </ul>
+              </div>
+
+              {/* Pro */}
+              <div className={`p-3 rounded-lg border-2 ${isPremium && tierKey === 'pro' ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200 bg-gray-50'}`}>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="font-semibold text-gray-900">Pro</p>
+                  {isPremium && tierKey === 'pro' && <span className="text-[10px] bg-indigo-500 text-white px-2 py-0.5 rounded-full font-medium">Your plan</span>}
+                </div>
+                <ul className="space-y-1 text-gray-600 text-xs">
+                  <li>✓ Everything in Solo, plus:</li>
+                  <li>✓ Chrome extension — scrape &amp; save from any website</li>
+                  <li>✓ PC, Mac, Chromebook support</li>
+                  <li>✓ 10 GB cloud storage</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
           {/* ── Chrome Extension section ── */}
           <div>
             <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
@@ -350,17 +401,24 @@ export function SettingsPanel({ onClose, onExportClick }: SettingsPanelProps) {
               Chrome Extension
             </h3>
             <div className="p-4 bg-blue-50 border-2 border-blue-200 rounded-lg space-y-3">
-              <p className="text-sm text-blue-900 font-medium">Right-click to save from any page</p>
+              <p className="text-sm text-blue-900 font-medium">The scraper — saves from any website</p>
               <p className="text-sm text-blue-800">
-                The LnkLokr extension lets you save links, images, and selected text directly from your browser — no copying needed.
+                LnkLokr is a PWA and cannot access other websites on its own. The Chrome extension bridges that gap — it runs inside your browser and can capture any link, image, or page you're looking at.
               </p>
-              <div className="space-y-1.5 text-sm text-blue-700">
-                <p>① Install the extension from the Chrome Web Store</p>
-                <p>② Click the LnkLokr icon in your toolbar</p>
-                <p>③ Sign in with your account email &amp; password</p>
-                <p>④ Right-click any link or image → <strong>Save to LnkLokr</strong></p>
+              <div className="space-y-1.5 text-xs text-blue-700">
+                <p className="font-semibold text-blue-800">What it does:</p>
+                <p>• Right-click any link → <strong>Save to LnkLokr</strong> → goes to Keep</p>
+                <p>• Right-click any image → saves image + page info to your collection</p>
+                <p>• Right-click selected text → saves as a note</p>
+                <p>• All saves are organised by Keep / Borrow / Share / Bury automatically</p>
               </div>
-              {isPremium && (
+              <div className="space-y-1.5 text-xs text-blue-700">
+                <p className="font-semibold text-blue-800">How to set up:</p>
+                <p>① Install from the Chrome Web Store</p>
+                <p>② Click the LnkLokr icon → sign in with your email &amp; password</p>
+                <p>③ Right-click anything on any page to save it</p>
+              </div>
+              {tierKey === 'pro' ? (
                 <a
                   href="https://chrome.google.com/webstore/detail/lnklokr"
                   target="_blank"
@@ -370,11 +428,14 @@ export function SettingsPanel({ onClose, onExportClick }: SettingsPanelProps) {
                   <Icon name="external-link" size={14} />
                   Get the Extension
                 </a>
-              )}
-              {!isPremium && (
-                <p className="text-xs text-blue-600 font-medium">
-                  Image &amp; file saving requires Solo or Pro. <button onClick={onClose} className="underline">Upgrade →</button>
-                </p>
+              ) : (
+                <div className="p-3 bg-white border border-blue-200 rounded-lg">
+                  <p className="text-xs text-blue-800 font-medium mb-1">Requires Pro plan</p>
+                  <p className="text-xs text-blue-600">
+                    The Chrome extension is a Pro feature — it gives you the full scraping capability across every website you visit.{' '}
+                    <button onClick={onClose} className="underline font-medium">Upgrade to Pro →</button>
+                  </p>
+                </div>
               )}
             </div>
           </div>

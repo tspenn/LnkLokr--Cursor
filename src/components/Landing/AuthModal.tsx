@@ -9,7 +9,7 @@ interface AuthModalProps {
 
 export function AuthModal({ initialMode = 'signin', onClose }: AuthModalProps) {
   const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>(initialMode)
-  const { signIn, signUp, resetPassword, error, isAuthenticated } = useAuth()
+  const { signIn, signUp, resetPassword, error, isAuthenticated, confirmationPending, clearConfirmationPending } = useAuth()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -25,6 +25,8 @@ export function AuthModal({ initialMode = 'signin', onClose }: AuthModalProps) {
   useEffect(() => {
     if (isAuthenticated) onClose()
   }, [isAuthenticated, onClose])
+
+  // Close is suppressed while confirmation is pending — show check-email UI instead
 
   // Close on Escape
   useEffect(() => {
@@ -92,6 +94,34 @@ export function AuthModal({ initialMode = 'signin', onClose }: AuthModalProps) {
         >
           <Icon name="x" size={20} />
         </button>
+
+        {/* Check-your-email state */}
+        {confirmationPending && (
+          <div className="text-center space-y-4 py-4">
+            <div className="mx-auto w-14 h-14 rounded-full bg-pink-100 flex items-center justify-center">
+              <Icon name="mail" size={28} className="text-pink-500" />
+            </div>
+            <h2 className="text-xl font-bold text-gray-900">Check your email</h2>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              We sent a confirmation link to <strong>{email}</strong>.
+              Click it to activate your Skyland Reach account.
+            </p>
+            <p className="text-xs text-gray-400">
+              Didn&apos;t get it? Check your spam folder or{' '}
+              <button
+                type="button"
+                onClick={clearConfirmationPending}
+                className="text-pink-600 hover:text-pink-700 underline"
+              >
+                try again
+              </button>
+              .
+            </p>
+          </div>
+        )}
+
+        {/* Main modal content */}
+        {!confirmationPending && <>
 
         {/* Heading */}
         <h2 className="text-2xl font-bold text-gray-900 text-center mb-1">
@@ -231,6 +261,8 @@ export function AuthModal({ initialMode = 'signin', onClose }: AuthModalProps) {
             </>
           ) : null}
         </p>
+
+        </>}
       </div>
     </div>
   )

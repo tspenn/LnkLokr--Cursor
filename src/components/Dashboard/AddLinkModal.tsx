@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { Folder, Link } from '@/types'
 import { Icon } from '../shared/Icon'
 import { supabase } from '@/lib/supabase'
+import { opfsStore, generateThumbnail } from '@/lib/opfsStore'
 
 type ContentMode = 'link' | 'image' | 'file'
 
@@ -209,10 +210,32 @@ export function AddLinkModal({
     setIsLoading(true)
     try {
       if (selectedFile) {
-        if (!isPremium) { setError('File upload requires a Pro account'); return }
-        const { storage_path, public_url } = await uploadFile(selectedFile)
-        await insertSavedItem(storage_path, public_url, selectedFile, 'image')
-        onClose()
+        if (isPremium) {
+          // Paid: upload full file to Supabase Storage
+          const { storage_path, public_url } = await uploadFile(selectedFile)
+          await insertSavedItem(storage_path, public_url, selectedFile, 'image')
+          onClose()
+        } else {
+          // Free: save full file to OPFS, thumbnail to Supabase via links row
+          if (!opfsStore.isSupported()) {
+            setError('Your browser does not support local file storage. Upgrade to save to the cloud.')
+            return
+          }
+          const [opfs_path, thumbnail_url] = await Promise.all([
+            opfsStore.saveFile(userId, selectedFile),
+            generateThumbnail(selectedFile),
+          ])
+          await onAdd({
+            ...formData,
+            url: '',
+            thumbnail_url: thumbnail_url ?? null,
+            content_type: 'image',
+            is_favorite: false,
+            status: currentStatus,
+            opfs_path,
+          })
+          onClose()
+        }
       } else if (formData.url) {
         try { new URL(formData.url) } catch { setError('Invalid image URL'); return }
         await onAdd({ ...formData, thumbnail_url: imagePreview, content_type: 'image', is_favorite: false, status: currentStatus })
@@ -227,16 +250,38 @@ export function AddLinkModal({
   const handleSubmitFile = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    if (!isPremium) { setError('File upload requires a Pro account'); return }
     if (!selectedFile) { setError('Please select a file'); return }
     if (!formData.title) { setError('Title is required'); return }
     setIsLoading(true)
     try {
-      const { storage_path, public_url } = await uploadFile(selectedFile)
       const ext = selectedFile.name.split('.').pop()?.toLowerCase()
       const contentType = selectedFile.type.startsWith('image/') ? 'image' : ext === 'pdf' ? 'pdf' : 'file'
-      await insertSavedItem(storage_path, public_url, selectedFile, contentType)
-      onClose()
+      if (isPremium) {
+        // Paid: upload to Supabase Storage
+        const { storage_path, public_url } = await uploadFile(selectedFile)
+        await insertSavedItem(storage_path, public_url, selectedFile, contentType)
+        onClose()
+      } else {
+        // Free: save to OPFS, metadata to Supabase via links row
+        if (!opfsStore.isSupported()) {
+          setError('Your browser does not support local file storage. Upgrade to save to the cloud.')
+          return
+        }
+        const [opfs_path, thumbnail_url] = await Promise.all([
+          opfsStore.saveFile(userId, selectedFile),
+          generateThumbnail(selectedFile),
+        ])
+        await onAdd({
+          ...formData,
+          url: '',
+          thumbnail_url: thumbnail_url ?? null,
+          content_type: contentType,
+          is_favorite: false,
+          status: currentStatus,
+          opfs_path,
+        })
+        onClose()
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to upload file')
     } finally { setIsLoading(false) }
@@ -468,23 +513,16 @@ export function AddLinkModal({
                   onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
                   onDragLeave={() => setIsDragging(false)}
                   onDrop={handleDrop}
-                  onClick={() => isPremium && fileInputRef.current?.click()}
-                  className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors ${
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors cursor-pointer hover:border-primary-400 ${
                     isDragging ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-300 dark:border-gray-600'
-                  } ${isPremium ? 'cursor-pointer hover:border-primary-400' : 'opacity-60 cursor-default'}`}
+                  }`}
                 >
                   <Icon name="upload" size={30} className="mx-auto mb-2 text-gray-400" />
-                  {isPremium ? (
-                    <>
-                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Drop an image or click to upload</p>
-                      <p className="text-xs text-gray-400 mt-1">JPG, PNG, GIF, WebP</p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Image upload requires Pro</p>
-                      <p className="text-xs text-gray-400 mt-1">Paste an image URL above — free for all users</p>
-                    </>
-                  )}
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Drop an image or click to upload</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {isPremium ? 'JPG, PNG, GIF, WebP — saved to cloud' : 'JPG, PNG, GIF, WebP — saved on this device'}
+                  </p>
                   <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
                     onChange={(e) => e.target.files?.[0] && applyFile(e.target.files[0])} />
                 </div>
@@ -509,53 +547,51 @@ export function AddLinkModal({
           {/* ── FILE MODE ── */}
           {mode === 'file' && (
             <div className="space-y-4">
-              {!isPremium ? (
-                <div className="text-center py-10">
-                  <Icon name="lock" size={40} className="mx-auto mb-3 text-amber-400" />
-                  <p className="font-semibold text-gray-800 dark:text-gray-200 mb-1">File upload requires Pro</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">Save PDFs, documents, and files to any Keep / Borrow / Share / Bury folder.</p>
-                  <a href="/upgrade" className="btn btn-primary btn-md">Upgrade to Pro</a>
-                </div>
-              ) : (
-                <>
-                  <div
-                    onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
-                    onDragLeave={() => setIsDragging(false)}
-                    onDrop={handleDrop}
-                    onClick={() => fileInputRef.current?.click()}
-                    className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
-                      isDragging ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-300 dark:border-gray-600 hover:border-primary-400'
-                    }`}
-                  >
-                    <Icon name="upload" size={36} className="mx-auto mb-3 text-gray-400" />
-                    <p className="font-medium text-gray-700 dark:text-gray-300">Drop a file here or click to browse</p>
-                    <p className="text-xs text-gray-400 mt-1">PDF, DOC, XLS, images, ZIP and more</p>
-                    <input ref={fileInputRef} type="file" className="hidden"
-                      onChange={(e) => e.target.files?.[0] && applyFile(e.target.files[0])} />
-                  </div>
+              <div
+                onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+                className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
+                  isDragging ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-300 dark:border-gray-600 hover:border-primary-400'
+                }`}
+              >
+                <Icon name="upload" size={36} className="mx-auto mb-3 text-gray-400" />
+                <p className="font-medium text-gray-700 dark:text-gray-300">Drop a file here or click to browse</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {isPremium ? 'PDF, DOC, XLS, images, ZIP and more — saved to cloud' : 'PDF, DOC, XLS, images, ZIP and more — saved on this device'}
+                </p>
+                <input ref={fileInputRef} type="file" className="hidden"
+                  onChange={(e) => e.target.files?.[0] && applyFile(e.target.files[0])} />
+              </div>
 
-                  {selectedFile && (
-                    <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl text-sm">
-                      <Icon name="file" size={18} className="text-gray-400 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-800 dark:text-gray-200 truncate">{selectedFile.name}</p>
-                        <p className="text-xs text-gray-400">{formatBytes(selectedFile.size)} · {selectedFile.type || 'unknown type'}</p>
-                      </div>
-                      <button type="button" onClick={clearFile} className="btn btn-ghost p-1">
-                        <Icon name="x" size={13} />
-                      </button>
-                    </div>
-                  )}
-                </>
+              {selectedFile && (
+                <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl text-sm">
+                  <Icon name="file" size={18} className="text-gray-400 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-800 dark:text-gray-200 truncate">{selectedFile.name}</p>
+                    <p className="text-xs text-gray-400">{formatBytes(selectedFile.size)} · {selectedFile.type || 'unknown type'}</p>
+                  </div>
+                  <button type="button" onClick={clearFile} className="btn btn-ghost p-1">
+                    <Icon name="x" size={13} />
+                  </button>
+                </div>
+              )}
+
+              {!isPremium && (
+                <p className="text-xs text-gray-400 text-center">
+                  Files saved on this device only.{' '}
+                  <a href="/upgrade" className="text-primary-500 hover:underline">Upgrade</a> to sync across all devices.
+                </p>
               )}
             </div>
           )}
 
           {/* Common fields */}
-          {(mode !== 'file' || isPremium) && commonFields}
+          {commonFields}
 
           {/* Actions */}
-          {(mode !== 'file' || isPremium) && (
+          {(
             <div className="flex gap-3 pt-2">
               <button type="submit" disabled={!canSubmit} className="flex-1 btn btn-lg btn-primary">
                 {isLoading

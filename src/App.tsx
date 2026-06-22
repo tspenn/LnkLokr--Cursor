@@ -4,8 +4,10 @@ import { AuthProvider, useAuth } from '@/context/AuthContext'
 import { ToastProvider } from '@/context/ToastContext'
 import { LandingPage } from '@/components/Landing/LandingPage'
 import { ResetPassword } from '@/components/Auth/ResetPassword'
+import { ConfirmEmail } from '@/components/Auth/ConfirmEmail'
 import { Dashboard } from '@/components/Dashboard/Dashboard'
 import { DreamKeeper } from '@/components/Dashboard/DreamKeeper'
+import { ShareTarget } from '@/components/ShareTarget'
 import { ensureResetPasswordPath, isPasswordRecoveryUrl } from '@/lib/authUrl'
 
 function AppContent() {
@@ -35,6 +37,11 @@ function AppContent() {
     }
   }, [location.search, isAuthenticated, navigate])
 
+  // Email confirmation landing — must render before any auth gate
+  if (location.pathname === '/auth/confirm') {
+    return <ConfirmEmail />
+  }
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-gradient-to-b from-cyan-100 via-pink-50 to-pink-200 gap-4">
@@ -59,6 +66,7 @@ function AppContent() {
   return (
     <Routes>
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/share" element={<ShareTarget />} />
       <Route path="/" element={<Dashboard />} />
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/dreamkeeper/:id" element={<DreamKeeper />} />

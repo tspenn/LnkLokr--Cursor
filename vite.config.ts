@@ -55,11 +55,21 @@ export default defineConfig({
             },
           ],
           categories: ['productivity'],
+          share_target: {
+            action: '/share',
+            method: 'GET',
+            params: {
+              title: 'title',
+              text: 'text',
+              url: 'url',
+            },
+          },
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff2}'],
           navigateFallback: '/index.html',
           navigateFallbackDenylist: [/^\/api\//],
+          navigateFallbackAllowlist: [/^\/share/],
         },
       }),
     {

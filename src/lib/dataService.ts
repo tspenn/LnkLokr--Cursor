@@ -1,33 +1,21 @@
 /**
- * dataService — routes data operations to the correct store based on tier.
+ * dataService — routes all data operations to Supabase for every tier.
  *
- * Free tier  → IndexedDB via localStore (local-only, private, one device)
- * Paid tier  → Supabase (cloud-synced, multi-device)
+ * Free tier  → Supabase (link metadata only; binary uploads blocked by RLS)
+ * Paid tier  → Supabase (link metadata + binary file uploads)
  *
- * Free users never write to Supabase. Supabase RLS remains as a safety net.
+ * The isPremium parameter is retained on each function so callers do not need
+ * to change. It is used only where behaviour genuinely differs by tier (e.g.
+ * migrateLocalToCloud, which is a one-time upgrade path for legacy local data).
  */
 
 import { localStore } from './localStore'
 import { supabase } from './supabase'
 import type { Link, Folder } from '@/types'
 
-// ─── internal init guard ──────────────────────────────────────────────────────
-
-let localStoreReady = false
-async function ensureLocal(): Promise<void> {
-  if (!localStoreReady) {
-    await localStore.init()
-    localStoreReady = true
-  }
-}
-
 // ─── Links ────────────────────────────────────────────────────────────────────
 
-export async function getLinks(isPremium: boolean, userId: string): Promise<Link[]> {
-  if (!isPremium) {
-    await ensureLocal()
-    return localStore.getLinks()
-  }
+export async function getLinks(_isPremium: boolean, userId: string): Promise<Link[]> {
   const { data, error } = await supabase
     .from('links')
     .select('*')
@@ -38,15 +26,10 @@ export async function getLinks(isPremium: boolean, userId: string): Promise<Link
 }
 
 export async function getLinksByStatus(
-  isPremium: boolean,
+  _isPremium: boolean,
   userId: string,
   status: 'keep' | 'borrow' | 'share' | 'bury',
 ): Promise<Link[]> {
-  if (!isPremium) {
-    await ensureLocal()
-    const all = await localStore.getLinks()
-    return all.filter(l => (l.status ?? 'keep') === status)
-  }
   const { data, error } = await supabase
     .from('links')
     .select('*')
@@ -58,42 +41,20 @@ export async function getLinksByStatus(
 }
 
 export async function addLink(
-  isPremium: boolean,
+  _isPremium: boolean,
   userId: string,
   linkData: Partial<Link>,
 ): Promise<void> {
-  if (!isPremium) {
-    await ensureLocal()
-    await localStore.addLink({
-      url: linkData.url ?? '',
-      title: linkData.title ?? '',
-      description: linkData.description ?? null,
-      thumbnail_url: linkData.thumbnail_url ?? null,
-      icon: linkData.icon ?? null,
-      status: linkData.status ?? 'keep',
-      folder_id: linkData.folder_id ?? null,
-      tags: linkData.tags ?? [],
-      is_favorite: linkData.is_favorite ?? false,
-      content_type: linkData.content_type ?? 'url',
-      notes: linkData.notes ?? null,
-    })
-    return
-  }
   const { error } = await supabase.from('links').insert({ ...linkData, user_id: userId })
   if (error) throw error
 }
 
 export async function updateLink(
-  isPremium: boolean,
+  _isPremium: boolean,
   userId: string,
   id: string,
   updates: Partial<Link>,
 ): Promise<void> {
-  if (!isPremium) {
-    await ensureLocal()
-    await localStore.updateLink(id, updates)
-    return
-  }
   const { error } = await supabase
     .from('links')
     .update({ ...updates, updated_at: new Date().toISOString() })
@@ -103,26 +64,17 @@ export async function updateLink(
 }
 
 export async function deleteLink(
-  isPremium: boolean,
+  _isPremium: boolean,
   userId: string,
   id: string,
 ): Promise<void> {
-  if (!isPremium) {
-    await ensureLocal()
-    await localStore.deleteLink(id)
-    return
-  }
   const { error } = await supabase.from('links').delete().eq('id', id).eq('user_id', userId)
   if (error) throw error
 }
 
 // ─── Folders ──────────────────────────────────────────────────────────────────
 
-export async function getFolders(isPremium: boolean, userId: string): Promise<Folder[]> {
-  if (!isPremium) {
-    await ensureLocal()
-    return localStore.getFolders()
-  }
+export async function getFolders(_isPremium: boolean, userId: string): Promise<Folder[]> {
   const { data, error } = await supabase
     .from('folders')
     .select('*')
@@ -133,36 +85,19 @@ export async function getFolders(isPremium: boolean, userId: string): Promise<Fo
 }
 
 export async function addFolder(
-  isPremium: boolean,
+  _isPremium: boolean,
   userId: string,
   folderData: Partial<Folder>,
 ): Promise<void> {
-  if (!isPremium) {
-    await ensureLocal()
-    await localStore.addFolder({
-      user_id: userId,
-      name: folderData.name ?? 'New Folder',
-      description: folderData.description,
-      color: folderData.color,
-      icon: folderData.icon,
-      position: folderData.position,
-    })
-    return
-  }
   const { error } = await supabase.from('folders').insert({ ...folderData, user_id: userId })
   if (error) throw error
 }
 
 export async function deleteFolder(
-  isPremium: boolean,
+  _isPremium: boolean,
   userId: string,
   id: string,
 ): Promise<void> {
-  if (!isPremium) {
-    await ensureLocal()
-    await localStore.deleteFolder(id)
-    return
-  }
   const { error } = await supabase.from('folders').delete().eq('id', id).eq('user_id', userId)
   if (error) throw error
 }
@@ -176,12 +111,12 @@ export interface MigrationResult {
 }
 
 /**
- * One-time migration: copies all IndexedDB data to Supabase cloud.
- * Called when a free user upgrades to a paid tier and chooses to transfer.
- * Leaves local data intact so the user can verify before clearing.
+ * One-time migration: copies any legacy IndexedDB data to Supabase cloud.
+ * Called when a user who saved data locally before this change wants to
+ * transfer it. Leaves local data intact so the user can verify before clearing.
  */
 export async function migrateLocalToCloud(userId: string): Promise<MigrationResult> {
-  await ensureLocal()
+  await localStore.init()
   const { links, folders } = await localStore.exportData()
 
   let migratedLinks = 0
@@ -200,7 +135,6 @@ export async function migrateLocalToCloud(userId: string): Promise<MigrationResu
   }
 
   if (links.length > 0) {
-    // Insert in batches of 50 to avoid request size limits
     const BATCH = 50
     for (let i = 0; i < links.length; i += BATCH) {
       const batch = links.slice(i, i + BATCH).map(l => ({ ...l, user_id: userId }))
@@ -222,6 +156,6 @@ export async function migrateLocalToCloud(userId: string): Promise<MigrationResu
  * Only call this after the user has confirmed the migration succeeded.
  */
 export async function clearLocalAfterMigration(): Promise<void> {
-  await ensureLocal()
+  await localStore.init()
   await localStore.clearAll()
 }

@@ -48,6 +48,8 @@ export interface Link {
   status?: 'keep' | 'borrow' | 'share' | 'bury'
   category_id?: string | null
   content_type?: string
+  /** Set when the file payload is stored in OPFS on this device (free tier). */
+  opfs_path?: string | null
   created_at: string
   updated_at?: string
 }
@@ -101,4 +103,6 @@ export interface AuthState {
   error: string | null
   /** True after PASSWORD_RECOVERY until the user sets a new password. */
   passwordRecovery: boolean
+  /** True after signUp when email confirmation is required (session is null). */
+  confirmationPending: boolean
 }

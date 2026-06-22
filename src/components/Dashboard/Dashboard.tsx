@@ -14,14 +14,13 @@ import { SavedGallery } from './SavedGallery'
 import { ExportPanel } from './ExportPanel'
 import { BorrowView } from './BorrowView'
 import { ShareView } from './ShareView'
-import { InboxView } from './InboxView'
 import { CloudMigrationModal } from './CloudMigrationModal'
 import { TickerTapeAd } from './TickerTapeAd'
 import { Header } from '../shared/Header'
 import { Icon } from '../shared/Icon'
-import { localStore } from '@/lib/localStore'
+import { getLinksByStatus } from '@/lib/dataService'
 
-type TabView = 'menu' | 'keep' | 'borrow' | 'share' | 'inbox' | 'links' | 'images' | 'files' | 'pdfs' | 'bury'
+type TabView = 'menu' | 'keep' | 'borrow' | 'share' | 'links' | 'files' | 'pdfs' | 'bury'
 
 export function Dashboard() {
   const { user, signOut } = useAuth()
@@ -38,12 +37,12 @@ export function Dashboard() {
   const [showSettings, setShowSettings] = useState(false)
   const [showExport, setShowExport] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [buriedLinks, setBuriedLinks] = useState<Link[]>([])
   const [buryPassword, setBuryPassword] = useState<string | null>(null)
   const [buryUnlocked, setBuryUnlocked] = useState(false)
   const [buryPasswordInput, setBuryPasswordInput] = useState('')
   const [showBuryPasswordEntry, setShowBuryPasswordEntry] = useState(false)
   const [passwordError, setPasswordError] = useState('')
-  const [inboxCount, setInboxCount] = useState(0)
   const [migrationData, setMigrationData] = useState<{ links: number; folders: number } | null>(null)
 
   const loadData = async () => {
@@ -138,13 +137,12 @@ export function Dashboard() {
   const handleAddLink = async (linkData: Partial<Link>) => {
     if (!user) return
     try {
-      await addLink(user.is_premium ?? false, user.id, { ...linkData, status: 'keep' })
+      await addLink(user.is_premium ?? false, user.id, linkData)
       setShowAddModal(false)
-      toast.success('Link saved!')
-      // For free users reload manually (no realtime)
-      if (!user.is_premium) await loadData()
+      toast.success('Saved!')
+      await loadData()
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to save link'
+      const message = error instanceof Error ? error.message : 'Failed to save'
       toast.error(message)
       throw error
     }
@@ -162,18 +160,25 @@ export function Dashboard() {
     }
   }
 
+  const openBury = async () => {
+    setActiveTab('bury')
+    // Load buried links (URLs + OPFS files stored in links table)
+    if (user) {
+      const buried = await getLinksByStatus(user.is_premium ?? false, user.id, 'bury')
+      setBuriedLinks(buried)
+    }
+  }
+
   const handleBuryClick = () => {
     if (!buryPassword) {
-      setActiveTab('bury')
       setBuryUnlocked(true)
+      openBury()
       return
     }
-
     if (buryUnlocked) {
-      setActiveTab('bury')
+      openBury()
       return
     }
-
     setShowBuryPasswordEntry(true)
     setBuryPasswordInput('')
     setPasswordError('')
@@ -181,15 +186,25 @@ export function Dashboard() {
 
   const handleBuryPasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-
     if (buryPasswordInput === buryPassword) {
       setBuryUnlocked(true)
       setShowBuryPasswordEntry(false)
-      setActiveTab('bury')
+      openBury()
       setPasswordError('')
     } else {
       setPasswordError('Incorrect password')
       setBuryPasswordInput('')
+    }
+  }
+
+  const handleDeleteBuriedLink = async (id: string) => {
+    if (!user) return
+    try {
+      await deleteLink(user.is_premium ?? false, user.id, id)
+      setBuriedLinks(prev => prev.filter(l => l.id !== id))
+      toast.success('Removed from Bury')
+    } catch {
+      toast.error('Failed to delete')
     }
   }
 
@@ -206,20 +221,16 @@ export function Dashboard() {
       <Header
         email={user?.email}
         isPremium={user?.is_premium}
-        inboxCount={inboxCount}
-        onInbox={() => setActiveTab('inbox')}
         onUpgrade={() => window.open(PURCHASE_URL, '_blank', 'noopener,noreferrer')}
         onSettings={() => setShowSettings(true)}
         onSignOut={signOut}
       />
 
       <main className={`flex-1 bg-gradient-to-b from-white via-pink-50 to-pink-100 border-x-4 border-b-4 border-black relative overflow-auto ${!user?.is_premium ? 'pb-12' : ''}`}>
-        {activeTab === 'inbox' ? (
-          <InboxView onBack={() => setActiveTab('menu')} onUnreadCountChange={setInboxCount} />
-        ) : activeTab === 'share' ? (
+        {activeTab === 'share' ? (
           <ShareView onBack={() => setActiveTab('menu')} />
         ) : activeTab === 'borrow' ? (
-          <BorrowView onBack={() => setActiveTab('menu')} />
+          <BorrowView onBack={() => setActiveTab('menu')} onShowAdd={() => setShowAddModal(true)} />
         ) : activeTab === 'menu' ? (
           <div className="max-w-md mx-auto px-4 py-8 pb-16 space-y-6">
             <button
@@ -289,21 +300,6 @@ export function Dashboard() {
               Dream Keeper
             </button>
 
-            <button
-              onClick={() => setActiveTab('inbox')}
-              className="w-full bg-indigo-200 border-4 border-black p-6 flex items-center justify-between text-3xl font-bold text-gray-900 hover:bg-indigo-300 transition shadow-lg hover:shadow-xl"
-              style={{ fontStyle: 'italic' }}
-            >
-              <span className="flex items-center gap-4">
-                <Icon name="mail" size={48} />
-                Inbox
-              </span>
-              {inboxCount > 0 && (
-                <span className="bg-red-500 text-white text-xl font-bold px-3 py-1 rounded-full">
-                  {inboxCount}
-                </span>
-              )}
-            </button>
 
             <div className="flex justify-center pt-12 pb-8">
               <img
@@ -314,37 +310,49 @@ export function Dashboard() {
             </div>
           </div>
         ) : activeTab === 'keep' ? (
-          <div className="max-w-md mx-auto px-4 py-8 space-y-6">
-            <div className="text-center mb-8">
+          <div className="max-w-md mx-auto px-4 py-8 space-y-4">
+            <div className="text-center mb-6">
               <h2 className="text-4xl font-bold mb-2" style={{ fontStyle: 'italic' }}>Keep</h2>
             </div>
 
+            {/* Primary add action */}
             <button
-              onClick={() => setActiveTab('links')}
-              className="w-full bg-purple-100 border-4 border-black rounded-full p-6 text-2xl font-medium hover:bg-purple-200 transition shadow-lg hover:shadow-xl"
+              onClick={() => setShowAddModal(true)}
+              className="w-full bg-primary-600 hover:bg-primary-700 text-white border-4 border-black rounded-full p-5 text-2xl font-bold transition shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
             >
-              Save URL & Image
+              <Icon name="plus" size={28} />
+              Add URL, Image or File
             </button>
 
-            <button
-              onClick={() => setActiveTab('files')}
-              className="w-full bg-purple-100 border-4 border-black rounded-full p-6 text-2xl font-medium hover:bg-purple-200 transition shadow-lg hover:shadow-xl"
-            >
-              File Storage
-            </button>
+            <div className="border-t border-gray-200 pt-4 space-y-3">
+              <p className="text-sm text-gray-500 text-center font-medium">Browse your collection</p>
+              <button
+                onClick={() => setActiveTab('links')}
+                className="w-full bg-purple-100 border-4 border-black rounded-full p-5 text-xl font-medium hover:bg-purple-200 transition shadow-lg hover:shadow-xl"
+              >
+                URLs & Images
+              </button>
 
-            <button
-              onClick={() => setActiveTab('pdfs')}
-              className="w-full bg-purple-100 border-4 border-black rounded-full p-6 text-2xl font-medium hover:bg-purple-200 transition shadow-lg hover:shadow-xl"
-            >
-              PDFS
-            </button>
+              <button
+                onClick={() => setActiveTab('files')}
+                className="w-full bg-purple-100 border-4 border-black rounded-full p-5 text-xl font-medium hover:bg-purple-200 transition shadow-lg hover:shadow-xl"
+              >
+                Files
+              </button>
 
-            <div className="flex justify-center pt-8">
+              <button
+                onClick={() => setActiveTab('pdfs')}
+                className="w-full bg-purple-100 border-4 border-black rounded-full p-5 text-xl font-medium hover:bg-purple-200 transition shadow-lg hover:shadow-xl"
+              >
+                PDFs
+              </button>
+            </div>
+
+            <div className="flex justify-center pt-4">
               <img
                 src="/icons/treasure_chest_transparent.png"
                 alt="Treasure Chest"
-                className="w-48 h-48 object-contain drop-shadow-2xl"
+                className="w-40 h-40 object-contain drop-shadow-2xl"
               />
             </div>
 
@@ -362,33 +370,35 @@ export function Dashboard() {
           <div className="flex flex-col h-full bg-gray-50">
             <div className="px-6 py-4 border-b border-gray-200 bg-white space-y-4">
               <button
-                onClick={() => setActiveTab(activeTab === 'images' || activeTab === 'bury' ? 'menu' : 'keep')}
+                onClick={() => setActiveTab(activeTab === 'bury' ? 'menu' : 'keep')}
                 className="flex items-center gap-2 text-gray-600 hover:text-gray-900 font-medium"
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M19 12H5M5 12L12 19M5 12L12 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
-                {activeTab === 'images' || activeTab === 'bury' ? 'Back to Menu' : 'Back to Keep'}
+                {activeTab === 'bury' ? 'Back to Menu' : 'Back to Keep'}
               </button>
 
-              {activeTab === 'links' && (
+              {(activeTab === 'links' || activeTab === 'bury') && (
                 <div className="flex gap-2">
-                  <div className="flex-1 relative">
-                    <Icon name="search" size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Search links..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
-                    />
-                  </div>
+                  {activeTab === 'links' && (
+                    <div className="flex-1 relative">
+                      <Icon name="search" size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Search links..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
+                      />
+                    </div>
+                  )}
                   <button
                     onClick={() => setShowAddModal(true)}
                     className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition font-medium"
                   >
                     <Icon name="plus" size={20} />
-                    Add Link
+                    Add
                   </button>
                 </div>
               )}
@@ -446,7 +456,7 @@ export function Dashboard() {
                               className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition font-medium"
                             >
                               <Icon name="plus" size={20} />
-                              Add your first link
+                              Add your first URL or image
                             </button>
                           </>
                         )}
@@ -454,11 +464,37 @@ export function Dashboard() {
                     )}
                   </>
                 ) : activeTab === 'files' ? (
-                  <SavedGallery contentType="file" />
+                  <SavedGallery contentType="file" onAdd={() => setShowAddModal(true)} />
                 ) : activeTab === 'pdfs' ? (
-                  <SavedGallery contentType="pdf" />
+                  <SavedGallery contentType="pdf" onAdd={() => setShowAddModal(true)} />
                 ) : activeTab === 'bury' ? (
-                  <SavedGallery contentType="image" status="bury" />
+                  <div className="space-y-8">
+                    {buriedLinks.length > 0 && (
+                      <div>
+                        <h2 className="text-lg font-semibold text-gray-900 mb-4">URLs &amp; Local Files</h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {buriedLinks.map(link => (
+                            <LinkCard
+                              key={link.id}
+                              link={link}
+                              onDelete={() => handleDeleteBuriedLink(link.id)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div>
+                      {buriedLinks.length > 0 && <h2 className="text-lg font-semibold text-gray-900 mb-4">Cloud Images &amp; Files</h2>}
+                      <SavedGallery contentType="image" status="bury" onAdd={() => setShowAddModal(true)} />
+                      <SavedGallery contentType="file" status="bury" onAdd={() => setShowAddModal(true)} />
+                    </div>
+                    {buriedLinks.length === 0 && (
+                      <div className="text-center py-8 text-gray-500 text-sm">
+                        <p>Nothing buried yet.</p>
+                        <p className="text-xs mt-1">Items you add here are password protected.</p>
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <SavedGallery contentType="image" />
                 )}

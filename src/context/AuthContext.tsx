@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { supabase, syncSessionToBackground } from '@/lib/supabase'
-import { getAuthRedirectUrl } from '@/lib/authRedirect'
+import { getAuthRedirectUrl, getConfirmRedirectUrl } from '@/lib/authRedirect'
 import {
   clearAwaitingPasswordReset,
   clearPasswordRecoveryPending,
@@ -67,6 +67,7 @@ async function fetchOrCreateUserProfile(authUser: SupabaseUser): Promise<User | 
 }
 
 interface AuthContextType extends AuthState {
+  clearConfirmationPending: () => void
   signUp: (email: string, password: string) => Promise<void>
   signIn: (email: string, password: string) => Promise<void>
   signInWithGoogle: () => Promise<void>
@@ -85,6 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loading: hasAuthCallbackInUrl() || isPasswordRecoveryUrl(),
     error: null,
     passwordRecovery: isPasswordRecoveryUrl(),
+    confirmationPending: false,
   }))
 
   useEffect(() => {
@@ -117,6 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               loading: false,
               error: null,
               passwordRecovery: true,
+              confirmationPending: false,
             }))
           } else {
             const profile = await fetchOrCreateUserProfile(session.user)
@@ -129,6 +132,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 loading: false,
                 error: null,
                 passwordRecovery: prev.passwordRecovery,
+                confirmationPending: false,
               }))
             } else {
               await supabase.auth.signOut()
@@ -138,6 +142,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 loading: false,
                 error: null,
                 passwordRecovery: false,
+                confirmationPending: false,
               })
             }
           }
@@ -210,6 +215,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   loading: false,
                   error: null,
                   passwordRecovery: prev.passwordRecovery,
+                  confirmationPending: false,
                 }))
               } else {
                 // Profile fetch failed but we still have a valid auth session —
@@ -236,6 +242,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   loading: false,
                   error: null,
                   passwordRecovery: false,
+                  confirmationPending: false,
                 })
               }
             } else {
@@ -262,14 +269,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setAuthState(prev => ({ ...prev, error: null }))
 
-      const { data: { user }, error: signUpError } = await supabase.auth.signUp({
+      const { data: { user, session }, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          emailRedirectTo: getConfirmRedirectUrl(),
+        },
       })
 
       if (signUpError) throw signUpError
 
-      if (user) {
+      if (session && user) {
+        // Email confirmation is disabled — session is live, create the profile now.
         const { error: insertError } = await supabase.from('users').insert({
           id: user.id,
           email: user.email,
@@ -281,6 +292,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (insertError && !insertError.message.includes('duplicate key')) {
           throw insertError
         }
+      } else if (user && !session) {
+        // Email confirmation is enabled — a confirmation email was sent.
+        // Profile creation happens in fetchOrCreateUserProfile after SIGNED_IN fires.
+        setAuthState(prev => ({ ...prev, confirmationPending: true }))
       }
     } catch (error) {
       let message = 'Sign up failed'
@@ -299,6 +314,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAuthState(prev => ({ ...prev, error: message }))
       throw error
     }
+  }
+
+  const clearConfirmationPending = () => {
+    setAuthState(prev => ({ ...prev, confirmationPending: false }))
   }
 
   const signIn = async (email: string, password: string) => {
@@ -439,6 +458,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider
       value={{
         ...authState,
+        clearConfirmationPending,
         signUp,
         signIn,
         signInWithGoogle,

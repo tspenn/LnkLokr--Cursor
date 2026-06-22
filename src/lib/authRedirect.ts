@@ -15,3 +15,19 @@ export function getAuthRedirectUrl(path = '/'): string {
   const siteUrl = (fromEnv || fromWindow || LNKLORKR_SITE_URL).replace(/\/$/, '')
   return `${siteUrl}${path.startsWith('/') ? path : `/${path}`}`
 }
+
+/**
+ * Where Supabase sends users after email confirmation.
+ * Reads VITE_APP_URL first, falls back to window.location.origin, then the hardcoded site URL.
+ * The resulting URL must be allowlisted in Supabase Auth → URL Configuration → Redirect URLs.
+ */
+export function getConfirmRedirectUrl(): string {
+  const fromEnv = import.meta.env.VITE_APP_URL as string | undefined
+  const fromWindow =
+    typeof window !== 'undefined' && window.location.protocol.startsWith('http')
+      ? window.location.origin
+      : undefined
+
+  const base = (fromEnv || fromWindow || LNKLORKR_SITE_URL).replace(/\/$/, '')
+  return `${base}/auth/confirm`
+}
