@@ -441,6 +441,22 @@ export function SettingsPanel({ onClose, onExportClick }: SettingsPanelProps) {
           </div>
 
           <div>
+            <h3 className="text-sm font-semibold text-gray-900 mb-3">Help</h3>
+            <a
+              href="mailto:Support@SkylandApps.com?subject=LnkLokr%20Support"
+              className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition"
+            >
+              <div className="w-9 h-9 rounded-lg bg-pink-100 flex items-center justify-center flex-shrink-0">
+                <Icon name="mail" size={18} className="text-pink-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900">Contact Support</p>
+                <p className="text-xs text-gray-500">Support@SkylandApps.com</p>
+              </div>
+            </a>
+          </div>
+
+          <div>
             <h3 className="text-sm font-semibold text-gray-900 mb-3">About</h3>
             <div className="space-y-2 text-sm text-gray-600">
               <p>LnkLokr v1.5.1</p>
