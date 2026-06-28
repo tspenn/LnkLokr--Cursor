@@ -222,7 +222,7 @@ export function SavedGallery({ contentType = 'image', status, onAdd }: SavedGall
             </p>
             <button
               onClick={onAdd}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-gray-50 border-2 border-black text-gray-800 rounded-lg font-medium transition"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -417,7 +417,7 @@ export function SavedGallery({ contentType = 'image', status, onAdd }: SavedGall
                   <div className="flex gap-3">
                     <button
                       onClick={() => setShowMetadata(true)}
-                      className="flex-1 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition"
+                      className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 border-2 border-black text-gray-800 rounded-lg font-medium transition"
                     >
                       View Metadata
                     </button>

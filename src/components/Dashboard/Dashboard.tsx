@@ -43,6 +43,9 @@ export function Dashboard() {
   const [buryUnlocked, setBuryUnlocked] = useState(false)
   const [buryPasswordInput, setBuryPasswordInput] = useState('')
   const [showBuryPasswordEntry, setShowBuryPasswordEntry] = useState(false)
+  const [showSetBuryPassword, setShowSetBuryPassword] = useState(false)
+  const [newBuryPassword, setNewBuryPassword] = useState('')
+  const [newBuryPasswordConfirm, setNewBuryPasswordConfirm] = useState('')
   const [passwordError, setPasswordError] = useState('')
   const [editingLink, setEditingLink] = useState<import('@/types').Link | null>(null)
   const [newFolderName, setNewFolderName] = useState('')
@@ -159,8 +162,11 @@ export function Dashboard() {
 
   const handleBuryClick = () => {
     if (!buryPassword) {
-      setBuryUnlocked(true)
-      openBury()
+      // No password set yet — require them to create one first
+      setNewBuryPassword('')
+      setNewBuryPasswordConfirm('')
+      setPasswordError('')
+      setShowSetBuryPassword(true)
       return
     }
     if (buryUnlocked) {
@@ -170,6 +176,34 @@ export function Dashboard() {
     setShowBuryPasswordEntry(true)
     setBuryPasswordInput('')
     setPasswordError('')
+  }
+
+  const handleSetBuryPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newBuryPassword.trim()) {
+      setPasswordError('Please enter a password')
+      return
+    }
+    if (newBuryPassword !== newBuryPasswordConfirm) {
+      setPasswordError('Passwords do not match')
+      return
+    }
+    if (!user) return
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ bury_password: newBuryPassword })
+        .eq('id', user.id)
+      if (error) throw error
+      setBuryPassword(newBuryPassword)
+      setBuryUnlocked(true)
+      setShowSetBuryPassword(false)
+      setPasswordError('')
+      openBury()
+      toast.success('Bury password set!')
+    } catch {
+      toast.error('Failed to save password')
+    }
   }
 
   const handleBuryPasswordSubmit = (e: React.FormEvent) => {
@@ -723,6 +757,82 @@ export function Dashboard() {
                   className="flex-1 px-6 py-3 border-4 border-black bg-cyan-200 hover:bg-cyan-300 font-bold text-lg transition"
                 >
                   Unlock
+                </button>
+              </div>
+              <p className="text-center text-sm text-gray-500 pt-2">
+                Forgot your password?{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowBuryPasswordEntry(false)
+                    setShowSetBuryPassword(true)
+                    setNewBuryPassword('')
+                    setNewBuryPasswordConfirm('')
+                    setPasswordError('')
+                  }}
+                  className="text-purple-600 hover:underline font-medium"
+                >
+                  Reset it
+                </button>
+              </p>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showSetBuryPassword && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-8 border-4 border-black">
+            <h2 className="text-3xl font-bold mb-2 text-center" style={{ fontStyle: 'italic' }}>
+              {buryPassword ? 'Reset Bury Password' : 'Set a Bury Password'}
+            </h2>
+            <p className="text-sm text-gray-500 text-center mb-6">
+              {buryPassword
+                ? 'Enter a new password to replace the current one.'
+                : 'Bury keeps your private items behind a password. Set one now to continue.'}
+            </p>
+
+            <form onSubmit={handleSetBuryPassword} className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">New password</label>
+                <input
+                  type="password"
+                  value={newBuryPassword}
+                  onChange={(e) => setNewBuryPassword(e.target.value)}
+                  placeholder="Choose a password"
+                  className="w-full px-4 py-3 border-4 border-black text-lg focus:ring-4 focus:ring-purple-200 transition"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Confirm password</label>
+                <input
+                  type="password"
+                  value={newBuryPasswordConfirm}
+                  onChange={(e) => setNewBuryPasswordConfirm(e.target.value)}
+                  placeholder="Repeat password"
+                  className="w-full px-4 py-3 border-4 border-black text-lg focus:ring-4 focus:ring-purple-200 transition"
+                />
+              </div>
+              {passwordError && (
+                <p className="text-red-600 text-sm">{passwordError}</p>
+              )}
+              <p className="text-xs text-gray-400">
+                You can also view or change your Bury password in Settings at any time.
+              </p>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => { setShowSetBuryPassword(false); setPasswordError('') }}
+                  className="flex-1 px-6 py-3 border-4 border-black bg-gray-100 hover:bg-gray-200 font-bold text-lg transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-6 py-3 border-4 border-black bg-purple-200 hover:bg-purple-300 font-bold text-lg transition"
+                >
+                  {buryPassword ? 'Reset' : 'Set Password'}
                 </button>
               </div>
             </form>
