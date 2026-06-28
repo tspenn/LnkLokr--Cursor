@@ -186,7 +186,7 @@ export function DreamKeeper() {
     try {
       const { default: html2canvas } = await import('html2canvas')
       const canvas = await html2canvas(canvasRef.current, {
-        backgroundColor: '#f8f1e3',
+        backgroundColor: '#ffffff',
         scale: 2,
         logging: false,
         useCORS: true,
@@ -226,62 +226,56 @@ export function DreamKeeper() {
 
   return (
     <div
-      className="min-h-screen bg-[#f4e9d8] p-6 font-serif select-none"
+      className="flex flex-col h-screen bg-green-50 select-none"
       onMouseMove={onMouseMove}
       onMouseUp={onMouseUp}
     >
       {/* Header */}
-      <div className="max-w-6xl mx-auto mb-6 flex items-center justify-between border-b-4 border-amber-950 pb-4">
-        <div className="flex items-center gap-4">
+      <header className="flex-none bg-white border-b-2 border-green-200 px-4 sm:px-6 py-3 flex items-center justify-between gap-3 flex-wrap shadow-sm">
+        <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={() => navigate('/')}
-            className="text-amber-900 hover:text-amber-700 transition"
+            className="p-2 rounded-full hover:bg-green-100 border-2 border-black transition flex-none"
             title="Back to Dashboard"
           >
-            <ArrowLeft size={28} />
+            <ArrowLeft size={20} />
           </button>
           <input
             type="text"
             value={title}
             onChange={e => setTitle(e.target.value)}
-            className="text-3xl font-bold bg-transparent border-none focus:outline-none text-amber-950 w-80"
+            className="text-xl sm:text-2xl font-bold bg-transparent border-none focus:outline-none text-gray-900 min-w-0 w-48 sm:w-72"
           />
           {savedAt && (
-            <span className="text-xs text-amber-600/70 flex items-center gap-1">
-              <Save size={12} />
-              Saved {new Date(savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            <span className="text-xs text-green-600/70 flex items-center gap-1 flex-none">
+              <Save size={11} />
+              {new Date(savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
         </div>
 
-        <div className="flex gap-2 flex-wrap justify-end">
-          {/* Board list toggle */}
+        <div className="flex gap-2 flex-wrap items-center">
+          {/* Board switcher */}
           <div className="relative">
             <button
               onClick={() => setShowBoardList(v => !v)}
-              className="flex items-center gap-2 bg-amber-50 hover:bg-amber-100 text-amber-900 px-4 py-2 rounded-xl transition border-2 border-amber-300 text-sm"
+              className="flex items-center gap-1.5 bg-green-50 hover:bg-green-100 border-2 border-black text-gray-800 px-3 py-1.5 rounded-lg transition text-sm font-medium"
             >
               Boards ({allBoards.length || 1})
             </button>
             {showBoardList && (
-              <div className="absolute top-full right-0 mt-1 bg-white border-4 border-amber-900 shadow-lg z-50 min-w-64">
+              <div className="absolute top-full right-0 mt-1 bg-white border-4 border-black shadow-lg z-50 min-w-56">
                 <button
                   onClick={newBoard}
-                  className="w-full px-4 py-2 text-left hover:bg-amber-50 text-sm font-bold text-amber-900 border-b-2 border-amber-200"
-                >
-                  + New Board
-                </button>
+                  className="w-full px-4 py-2 text-left hover:bg-green-50 text-sm font-bold border-b-2 border-gray-100"
+                >+ New Board</button>
                 {allBoards.map(b => (
-                  <div key={b.id} className={`flex items-center gap-2 px-4 py-2 hover:bg-amber-50 ${b.id === boardId ? 'bg-amber-100' : ''}`}>
+                  <div key={b.id} className={`flex items-center gap-2 px-4 py-2 hover:bg-green-50 ${b.id === boardId ? 'bg-green-100 font-bold' : ''}`}>
                     <button className="flex-1 text-left text-sm truncate" onClick={() => openBoard(b.id)}>
                       {b.title}
                     </button>
                     {b.id !== boardId && (
-                      <button
-                        onClick={() => deleteBoard(b.id)}
-                        className="text-red-400 hover:text-red-600 text-xs"
-                        title="Delete board"
-                      >✕</button>
+                      <button onClick={() => deleteBoard(b.id)} className="text-red-400 hover:text-red-600 text-xs flex-none">✕</button>
                     )}
                   </div>
                 ))}
@@ -289,111 +283,96 @@ export function DreamKeeper() {
             )}
           </div>
 
-          <button
-            onClick={addText}
-            className="flex items-center gap-2 bg-amber-100 hover:bg-amber-200 text-amber-900 px-4 py-2 rounded-xl transition border-2 border-amber-300"
-          >
-            <Type size={18} /> Add Text
+          <button onClick={addText} className="flex items-center gap-1.5 bg-purple-100 hover:bg-purple-200 border-2 border-black text-gray-800 px-3 py-1.5 rounded-lg transition text-sm font-medium">
+            <Type size={16} /> Text
           </button>
-          <button
-            onClick={addImageByUrl}
-            className="flex items-center gap-2 bg-amber-100 hover:bg-amber-200 text-amber-900 px-4 py-2 rounded-xl transition border-2 border-amber-300"
-          >
-            <ImageIcon size={18} /> Add Image
+          <button onClick={addImageByUrl} className="flex items-center gap-1.5 bg-yellow-100 hover:bg-yellow-200 border-2 border-black text-gray-800 px-3 py-1.5 rounded-lg transition text-sm font-medium">
+            <ImageIcon size={16} /> Image
           </button>
           {selectedId && (
-            <button
-              onClick={deleteSelected}
-              className="flex items-center gap-2 bg-red-100 hover:bg-red-200 text-red-700 px-4 py-2 rounded-xl transition border-2 border-red-300"
-            >
-              <Trash2 size={18} /> Delete
+            <button onClick={deleteSelected} className="flex items-center gap-1.5 bg-red-100 hover:bg-red-200 border-2 border-red-400 text-red-700 px-3 py-1.5 rounded-lg transition text-sm font-medium">
+              <Trash2 size={16} /> Delete
             </button>
           )}
           <button
             onClick={exportAsImage}
             disabled={isExporting}
-            className="flex items-center gap-2 bg-amber-900 hover:bg-amber-800 text-white px-5 py-2 rounded-xl transition disabled:opacity-60"
+            className="flex items-center gap-1.5 bg-green-200 hover:bg-green-300 border-2 border-black text-gray-900 px-4 py-1.5 rounded-lg transition text-sm font-bold disabled:opacity-60"
           >
-            <Download size={18} />
+            <Download size={16} />
             {isExporting ? 'Exporting…' : 'Export PNG'}
           </button>
         </div>
+      </header>
+
+      {/* Canvas — fills all remaining vertical space; scrollable on mobile */}
+      <div className="flex-1 overflow-auto bg-green-50 p-2 sm:p-0">
+        <div
+          ref={canvasRef}
+          className="relative w-full bg-white"
+          style={{
+            minHeight: 'calc(100vh - 60px)',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
+          }}
+          onClick={e => {
+            if (e.target === e.currentTarget) {
+              setSelectedId(null)
+              setEditingId(null)
+            }
+          }}
+        >
+          {items.length === 0 && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-green-300 pointer-events-none gap-3">
+              <ImageIcon size={56} />
+              <p className="text-lg text-green-400">Add images or text to your vision board</p>
+              <p className="text-sm text-green-300">Drag to arrange · Ctrl+V to paste an image or URL</p>
+            </div>
+          )}
+
+          {[...items].sort((a, b) => a.zIndex - b.zIndex).map(item => (
+            <div
+              key={item.id}
+              className={`absolute cursor-move transition-shadow ${
+                selectedId === item.id
+                  ? 'ring-2 ring-green-500 ring-offset-2 shadow-xl'
+                  : 'hover:shadow-lg'
+              }`}
+              style={{
+                left: item.x,
+                top: item.y,
+                width: item.width,
+                height: item.type === 'text' ? 'auto' : item.height,
+                transform: `rotate(${item.rotation}deg)`,
+                zIndex: item.zIndex,
+              }}
+              onMouseDown={e => onMouseDown(e, item)}
+              onClick={e => { e.stopPropagation(); setSelectedId(item.id) }}
+              onDoubleClick={() => item.type === 'text' && setEditingId(item.id)}
+            >
+              {item.type === 'image' ? (
+                <img src={item.content} alt="" className="w-full h-full object-contain shadow-md" draggable={false} />
+              ) : editingId === item.id ? (
+                <textarea
+                  autoFocus
+                  value={item.content}
+                  onChange={e => handleTextChange(item.id, e.target.value)}
+                  onBlur={() => setEditingId(null)}
+                  className="w-full min-h-[60px] bg-white p-3 text-base font-medium text-gray-900 shadow-md resize-none focus:outline-none border-2 border-green-400"
+                />
+              ) : (
+                <div className="w-full bg-white p-3 text-base font-medium text-gray-900 shadow-md whitespace-pre-wrap break-words border border-gray-100" style={{ minHeight: '60px' }}>
+                  {item.content}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* Canvas */}
-      <div
-        ref={canvasRef}
-        className="max-w-6xl mx-auto min-h-[680px] relative overflow-hidden"
-        style={{
-          background: '#f8f1e3',
-          border: '14px solid #3c2f1e',
-          boxShadow: 'inset 0 0 60px rgba(0,0,0,0.3), 0 8px 32px rgba(0,0,0,0.3)',
-        }}
-        onClick={e => {
-          if (e.target === e.currentTarget) {
-            setSelectedId(null)
-            setEditingId(null)
-          }
-        }}
-      >
-        {items.length === 0 && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-amber-700/50 text-lg pointer-events-none gap-2">
-            <ImageIcon size={48} />
-            <p>Add images or text to your board</p>
-          </div>
-        )}
-
-        {[...items].sort((a, b) => a.zIndex - b.zIndex).map(item => (
-          <div
-            key={item.id}
-            className={`absolute cursor-move transition-shadow ${
-              selectedId === item.id
-                ? 'ring-2 ring-amber-600 ring-offset-1 shadow-xl'
-                : 'hover:shadow-lg'
-            }`}
-            style={{
-              left: item.x,
-              top: item.y,
-              width: item.width,
-              height: item.type === 'text' ? 'auto' : item.height,
-              transform: `rotate(${item.rotation}deg)`,
-              zIndex: item.zIndex,
-            }}
-            onMouseDown={e => onMouseDown(e, item)}
-            onClick={e => { e.stopPropagation(); setSelectedId(item.id) }}
-            onDoubleClick={() => item.type === 'text' && setEditingId(item.id)}
-          >
-            {item.type === 'image' ? (
-              <img
-                src={item.content}
-                alt=""
-                className="w-full h-full object-contain shadow-md"
-                draggable={false}
-              />
-            ) : editingId === item.id ? (
-              <textarea
-                autoFocus
-                value={item.content}
-                onChange={e => handleTextChange(item.id, e.target.value)}
-                onBlur={() => setEditingId(null)}
-                className="w-full min-h-[60px] bg-white/90 p-3 text-base font-medium text-amber-950 shadow-md resize-none focus:outline-none border-none"
-                style={{ fontFamily: 'Georgia, serif' }}
-              />
-            ) : (
-              <div
-                className="w-full bg-white/90 p-3 text-base font-medium text-amber-950 shadow-md whitespace-pre-wrap break-words"
-                style={{ fontFamily: 'Georgia, serif', minHeight: '60px' }}
-              >
-                {item.content}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      <p className="text-center text-amber-700/60 mt-6 text-sm font-sans">
+      {/* Footer hint */}
+      <div className="flex-none py-2 text-center text-green-600/50 text-xs border-t border-green-100 bg-white/60">
         Drag items to arrange · Double-click text to edit · Boards auto-save to this device
-      </p>
+      </div>
     </div>
   )
 }
