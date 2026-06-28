@@ -341,54 +341,64 @@ export function SettingsPanel({ onClose, onExportClick }: SettingsPanelProps) {
             </button>
           </div>
 
-          {/* ── File Storage section ── */}
+          {/* ── Storage tiers ── */}
           <div>
-            <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-gray-900 mb-1 flex items-center gap-2">
               <Icon name="hard-drive" size={16} />
-              How File Saving Works
+              How Your Data Is Saved
             </h3>
+            <p className="text-xs text-gray-500 mb-3">Each plan is honest about what it does.</p>
             <div className="space-y-2 text-sm">
 
               {/* Free */}
-              <div className={`p-3 rounded-lg border-2 ${!isPremium ? 'border-blue-300 bg-blue-50' : 'border-gray-200 bg-gray-50'}`}>
-                <div className="flex items-center justify-between mb-1">
-                  <p className="font-semibold text-gray-900">Free</p>
-                  {!isPremium && <span className="text-[10px] bg-blue-500 text-white px-2 py-0.5 rounded-full font-medium">Your plan</span>}
+              <div className={`p-3 rounded-lg border-2 ${!isPremium ? 'border-purple-300 bg-purple-50' : 'border-gray-200 bg-gray-50'}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="font-semibold text-gray-900">Free — One device</p>
+                  {!isPremium && <span className="text-[10px] bg-purple-500 text-white px-2 py-0.5 rounded-full font-medium">Your plan</span>}
                 </div>
+                <p className="text-xs text-gray-600 mb-2">
+                  Great for organizing on a single device. Everything stays on <strong>this device</strong> — nothing is shared to other devices except saved URLs.
+                </p>
                 <ul className="space-y-1 text-gray-600 text-xs">
-                  <li>✓ Links &amp; metadata saved to cloud — visible on all devices</li>
-                  <li>✓ Images &amp; files saved full-size on <strong>this device only</strong></li>
-                  <li>✓ Thumbnails sync so you can see your files from any device</li>
-                  <li>✓ Download files to a flash drive to move them anywhere</li>
-                  <li className="text-gray-400">✗ Files not accessible on other devices without download/transfer</li>
+                  <li>✓ Saved URLs backed up to cloud (safe if you reinstall)</li>
+                  <li>✓ Images &amp; files stored locally — fast, private, no cloud cost</li>
+                  <li>✓ Keep, Borrow, Share, Bury &amp; Dream Keeper — full app</li>
+                  <li className="text-gray-400">— Files stay on this device only</li>
+                  <li className="text-gray-400">— No Chrome extension</li>
                 </ul>
               </div>
 
               {/* Solo */}
               <div className={`p-3 rounded-lg border-2 ${isPremium && tierKey === 'solo' ? 'border-pink-300 bg-pink-50' : 'border-gray-200 bg-gray-50'}`}>
-                <div className="flex items-center justify-between mb-1">
-                  <p className="font-semibold text-gray-900">Solo</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="font-semibold text-gray-900">Solo — All your devices</p>
                   {isPremium && tierKey === 'solo' && <span className="text-[10px] bg-pink-500 text-white px-2 py-0.5 rounded-full font-medium">Your plan</span>}
                 </div>
+                <p className="text-xs text-gray-600 mb-2">
+                  Everything syncs. Open LnkLokr on your phone, tablet, or another computer and see the same collection.
+                </p>
                 <ul className="space-y-1 text-gray-600 text-xs">
-                  <li>✓ Everything in Free, plus:</li>
-                  <li>✓ Files uploaded to LnkLokr cloud — access from any device</li>
-                  <li>✓ 2 GB cloud storage for images, PDFs, and documents</li>
+                  <li>✓ Images &amp; files uploaded to cloud — any device, any time</li>
+                  <li>✓ 2 GB cloud storage</li>
                   <li>✓ No ads</li>
+                  <li className="text-gray-400">— No Chrome extension</li>
                 </ul>
               </div>
 
               {/* Pro */}
               <div className={`p-3 rounded-lg border-2 ${isPremium && tierKey === 'pro' ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200 bg-gray-50'}`}>
-                <div className="flex items-center justify-between mb-1">
-                  <p className="font-semibold text-gray-900">Pro</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="font-semibold text-gray-900">Pro — Full power</p>
                   {isPremium && tierKey === 'pro' && <span className="text-[10px] bg-indigo-500 text-white px-2 py-0.5 rounded-full font-medium">Your plan</span>}
                 </div>
+                <p className="text-xs text-gray-600 mb-2">
+                  The Chrome extension is what makes LnkLokr really click — right-click anything on the web and it's saved instantly.
+                </p>
                 <ul className="space-y-1 text-gray-600 text-xs">
-                  <li>✓ Everything in Solo, plus:</li>
-                  <li>✓ Chrome extension — scrape &amp; save from any website</li>
-                  <li>✓ PC, Mac, Chromebook support</li>
+                  <li>✓ Everything in Solo</li>
+                  <li>✓ Chrome extension — save from any website in one click</li>
                   <li>✓ 10 GB cloud storage</li>
+                  <li>✓ PC, Mac, Chromebook</li>
                 </ul>
               </div>
             </div>
