@@ -24,7 +24,7 @@ interface BorrowItem {
 
 interface BorrowViewProps {
   onBack?: () => void
-  onShowAdd?: () => void
+  onShowAdd?: (mode: 'link' | 'image' | 'file') => void
 }
 
 export function BorrowView({ onBack, onShowAdd }: BorrowViewProps) {
@@ -243,13 +243,29 @@ export function BorrowView({ onBack, onShowAdd }: BorrowViewProps) {
               </button>
             )}
             {onShowAdd && (
-              <button
-                onClick={onShowAdd}
-                className="flex items-center gap-2 px-4 py-2 bg-black hover:bg-gray-800 text-white rounded-lg font-medium transition"
-              >
-                <Icon name="plus" size={18} />
-                Add
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => onShowAdd('link')}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-black hover:bg-gray-800 text-white rounded-lg font-medium transition text-sm"
+                >
+                  <Icon name="link" size={14} />
+                  URL
+                </button>
+                <button
+                  onClick={() => onShowAdd('image')}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition text-sm"
+                >
+                  <Icon name="image" size={14} />
+                  Image
+                </button>
+                <button
+                  onClick={() => onShowAdd('file')}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-purple-100 hover:bg-purple-200 border-2 border-black text-black rounded-lg font-medium transition text-sm"
+                >
+                  <Icon name="file" size={14} />
+                  File
+                </button>
+              </div>
             )}
           </div>
 
@@ -518,12 +534,33 @@ export function BorrowView({ onBack, onShowAdd }: BorrowViewProps) {
             </div>
           ) : (
             <div className="text-center py-12">
-              <p className="text-gray-600 text-lg mb-4">
-                No items in Borrow yet
-              </p>
-              <p className="text-gray-500 text-sm">
-                Items you save temporarily will appear here
-              </p>
+              <p className="text-gray-600 text-lg mb-2">No items in Borrow yet</p>
+              <p className="text-gray-500 text-sm mb-6">Save things you want to revisit, return, or share later</p>
+              {onShowAdd && (
+                <div className="flex flex-col items-center gap-3">
+                  <button
+                    onClick={() => onShowAdd('link')}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-black hover:bg-gray-800 text-white rounded-lg transition font-medium"
+                  >
+                    <Icon name="link" size={16} />
+                    Save a URL
+                  </button>
+                  <button
+                    onClick={() => onShowAdd('image')}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition font-medium"
+                  >
+                    <Icon name="image" size={16} />
+                    Upload an Image
+                  </button>
+                  <button
+                    onClick={() => onShowAdd('file')}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-purple-100 hover:bg-purple-200 border-2 border-black text-black rounded-lg transition font-medium"
+                  >
+                    <Icon name="file" size={16} />
+                    Upload a File
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

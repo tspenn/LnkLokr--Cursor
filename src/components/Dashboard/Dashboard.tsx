@@ -250,7 +250,7 @@ export function Dashboard() {
         {activeTab === 'share' ? (
           <ShareView onBack={() => setActiveTab('menu')} />
         ) : activeTab === 'borrow' ? (
-          <BorrowView onBack={() => setActiveTab('menu')} onShowAdd={() => setShowAddModal(true)} />
+          <BorrowView onBack={() => setActiveTab('menu')} onShowAdd={(mode) => openAddModal(mode)} />
         ) : activeTab === 'menu' ? (
           <div className="max-w-md mx-auto px-4 py-8 pb-16 space-y-6">
             <button
@@ -339,21 +339,21 @@ export function Dashboard() {
             <div className="space-y-3">
               <button
                 onClick={() => openAddModal('link')}
-                className="w-full bg-primary-600 hover:bg-primary-700 text-white border-4 border-black rounded-full p-5 text-xl font-bold transition shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
+                className="w-full bg-black hover:bg-gray-900 text-white border-4 border-black rounded-full p-5 text-xl font-bold transition shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
               >
                 <Icon name="link" size={24} />
                 Save a URL
               </button>
               <button
                 onClick={() => openAddModal('image')}
-                className="w-full bg-yellow-100 hover:bg-yellow-200 border-4 border-black rounded-full p-5 text-xl font-bold transition shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
+                className="w-full bg-yellow-300 hover:bg-yellow-400 border-4 border-black rounded-full p-5 text-xl font-bold transition shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
               >
                 <Icon name="image" size={24} />
                 Upload an Image
               </button>
               <button
                 onClick={() => openAddModal('file')}
-                className="w-full bg-purple-100 hover:bg-purple-200 border-4 border-black rounded-full p-5 text-xl font-bold transition shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
+                className="w-full bg-yellow-100 hover:bg-yellow-200 border-4 border-black rounded-full p-5 text-xl font-bold transition shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
               >
                 <Icon name="file" size={24} />
                 Upload a File or PDF
@@ -431,14 +431,14 @@ export function Dashboard() {
                   )}
                   <button
                     onClick={() => openAddModal('link')}
-                    className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition font-medium"
+                    className="flex items-center gap-2 px-4 py-2 bg-black hover:bg-gray-800 text-white rounded-lg transition font-medium"
                   >
                     <Icon name="link" size={16} />
                     URL
                   </button>
                   <button
                     onClick={() => openAddModal('image')}
-                    className="flex items-center gap-2 px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-black rounded-lg transition font-medium"
+                    className="flex items-center gap-2 px-4 py-2 bg-yellow-300 hover:bg-yellow-400 text-black border border-black rounded-lg transition font-medium"
                   >
                     <Icon name="image" size={16} />
                     Image
@@ -546,21 +546,21 @@ export function Dashboard() {
                             <div className="flex flex-col items-center gap-3">
                               <button
                                 onClick={() => openAddModal('link')}
-                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition font-medium"
+                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-black hover:bg-gray-800 text-white rounded-lg transition font-medium"
                               >
                                 <Icon name="link" size={16} />
                                 Save a URL
                               </button>
                               <button
                                 onClick={() => openAddModal('image')}
-                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-yellow-400 hover:bg-yellow-500 text-black rounded-lg transition font-medium"
+                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-yellow-300 hover:bg-yellow-400 text-black border border-black rounded-lg transition font-medium"
                               >
                                 <Icon name="image" size={16} />
                                 Upload an Image
                               </button>
                               <button
                                 onClick={() => openAddModal('file')}
-                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-purple-100 hover:bg-purple-200 text-gray-800 rounded-lg transition font-medium"
+                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-yellow-100 hover:bg-yellow-200 text-black border border-black rounded-lg transition font-medium"
                               >
                                 <Icon name="file" size={16} />
                                 Upload a File
