@@ -24,6 +24,8 @@ interface AddLinkModalProps {
   userId: string
   currentStatus?: 'keep' | 'borrow' | 'share' | 'bury'
   initialMode?: ContentMode
+  initialUrl?: string
+  initialFile?: File
   onAdd: (link: Partial<Link>) => void
   onClose: () => void
 }
@@ -34,6 +36,8 @@ export function AddLinkModal({
   userId,
   currentStatus = 'keep',
   initialMode = 'link',
+  initialUrl,
+  initialFile,
   onAdd,
   onClose,
 }: AddLinkModalProps) {
@@ -131,6 +135,24 @@ export function AddLinkModal({
       setFilePreview(null)
     }
   }
+
+  // Apply any pre-loaded content (from global paste or external trigger)
+  useEffect(() => {
+    if (initialFile) {
+      setMode('image')
+      applyFile(initialFile)
+    } else if (initialUrl) {
+      if (looksLikeImageUrl(initialUrl)) {
+        setMode('image')
+        applyImageUrl(initialUrl)
+      } else {
+        setMode('link')
+        setFormData(prev => ({ ...prev, url: initialUrl }))
+        debounce(initialUrl)
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const clearFile = () => {
     setSelectedFile(null)

@@ -35,6 +35,8 @@ export function Dashboard() {
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
   const [addModalMode, setAddModalMode] = useState<'link' | 'image' | 'file'>('link')
+  const [pastedUrl, setPastedUrl] = useState<string | undefined>()
+  const [pastedFile, setPastedFile] = useState<File | undefined>()
   const [showSettings, setShowSettings] = useState(false)
   const [showExport, setShowExport] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -122,8 +124,60 @@ export function Dashboard() {
 
   const openAddModal = (mode: 'link' | 'image' | 'file' = 'link') => {
     setAddModalMode(mode)
+    setPastedUrl(undefined)
+    setPastedFile(undefined)
     setShowAddModal(true)
   }
+
+  // Global Ctrl+V / paste — opens the add modal with pre-loaded content
+  useEffect(() => {
+    const handleGlobalPaste = (e: ClipboardEvent) => {
+      // Don't intercept if user is typing in an input/textarea
+      const target = e.target as HTMLElement
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable ||
+        showAddModal
+      ) return
+
+      const items = e.clipboardData?.items
+      if (!items) return
+
+      // Image data (screenshot, copied image)
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile()
+          if (file) {
+            setPastedFile(file)
+            setPastedUrl(undefined)
+            setAddModalMode('image')
+            setShowAddModal(true)
+            return
+          }
+        }
+      }
+
+      // Text (URL or plain text)
+      for (const item of Array.from(items)) {
+        if (item.type === 'text/plain') {
+          item.getAsString((text) => {
+            const trimmed = text.trim()
+            if (!trimmed) return
+            setPastedUrl(trimmed)
+            setPastedFile(undefined)
+            const isImageUrl = /\.(jpe?g|png|gif|webp|svg|avif|bmp|ico)(\?.*)?$/i.test(trimmed)
+            setAddModalMode(isImageUrl ? 'image' : 'link')
+            setShowAddModal(true)
+          })
+          return
+        }
+      }
+    }
+
+    window.addEventListener('paste', handleGlobalPaste)
+    return () => window.removeEventListener('paste', handleGlobalPaste)
+  }, [showAddModal])
 
   const handleAddLink = async (linkData: Partial<Link>) => {
     if (!user) return
@@ -368,6 +422,11 @@ export function Dashboard() {
           <div className="max-w-md mx-auto px-4 py-8 space-y-4">
             <div className="text-center mb-6">
               <h2 className="text-4xl font-bold mb-2" style={{ fontStyle: 'italic' }}>Keep</h2>
+            </div>
+
+            {/* Paste hint */}
+            <div className="text-center text-sm text-gray-400 bg-gray-50 border border-dashed border-gray-300 rounded-xl py-3 px-4">
+              💡 Press <kbd className="px-1.5 py-0.5 bg-white border border-gray-300 rounded text-xs font-mono">Ctrl+V</kbd> anywhere to instantly save a copied URL or image
             </div>
 
             {/* Add actions — one per type so intent is obvious */}
@@ -669,6 +728,8 @@ export function Dashboard() {
           isPremium={user?.is_premium ?? false}
           userId={user?.id ?? ''}
           initialMode={addModalMode}
+          initialUrl={pastedUrl}
+          initialFile={pastedFile}
           currentStatus={
             activeTab === 'borrow' ? 'borrow'
             : activeTab === 'share' ? 'share'
@@ -676,7 +737,7 @@ export function Dashboard() {
             : 'keep'
           }
           onAdd={handleAddLink}
-          onClose={() => setShowAddModal(false)}
+          onClose={() => { setShowAddModal(false); setPastedUrl(undefined); setPastedFile(undefined) }}
         />
       )}
 
