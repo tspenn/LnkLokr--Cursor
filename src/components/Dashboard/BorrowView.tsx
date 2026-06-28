@@ -35,7 +35,7 @@ export function BorrowView({ onBack, onShowAdd }: BorrowViewProps) {
   const [categories, setCategories] = useState<BorrowCategory[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [isEditingCategory, setIsEditingCategory] = useState(false)
-  const [categoryName, setCategoryName] = useState('Borrow')
+  const [categoryName, setCategoryName] = useState('')
   const [activeMenu, setActiveMenu] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -269,74 +269,64 @@ export function BorrowView({ onBack, onShowAdd }: BorrowViewProps) {
             )}
           </div>
 
-          {isEditingCategory ? (
-            <div className="flex items-center gap-3">
-              <input
-                type="text"
-                value={categoryName}
-                onChange={(e) => setCategoryName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleCreateCategory()}
-                className="flex-1 px-4 py-2 text-2xl font-bold border-4 border-black focus:outline-none focus:ring-4 focus:ring-purple-400"
-                placeholder="Category name..."
-                autoFocus
-              />
-              <button
-                onClick={handleCreateCategory}
-                className="px-6 py-2 bg-black text-white font-bold hover:bg-gray-800 transition"
-              >
-                Save
-              </button>
-              <button
-                onClick={() => setIsEditingCategory(false)}
-                className="px-6 py-2 bg-white border-4 border-black font-bold hover:bg-gray-100 transition"
-              >
-                Cancel
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center justify-between">
-              <h2 className="text-4xl font-bold" style={{ fontStyle: 'italic' }}>
-                {selectedCategory
-                  ? categories.find(c => c.id === selectedCategory)?.name
-                  : 'Borrow'}
-              </h2>
-              <button
-                onClick={() => setIsEditingCategory(true)}
-                className="p-2 hover:bg-purple-300 rounded-lg transition"
-                title="Create category"
-              >
-                <Icon name="edit" size={20} />
-              </button>
-            </div>
-          )}
+          <h2 className="text-4xl font-bold" style={{ fontStyle: 'italic' }}>
+            {selectedCategory
+              ? categories.find(c => c.id === selectedCategory)?.name
+              : 'Borrow'}
+          </h2>
 
-          {categories.length > 0 && (
-            <div className="flex gap-2 mt-4 flex-wrap">
-              <button
-                onClick={() => setSelectedCategory(null)}
-                className={`px-4 py-2 font-medium border-4 border-black transition ${
-                  !selectedCategory
-                    ? 'bg-black text-white'
-                    : 'bg-white hover:bg-gray-100'
-                }`}
-              >
-                All
-              </button>
-              {categories.map(category => (
+          <div className="flex gap-2 mt-4 flex-wrap items-center">
+            {categories.length > 0 && (
+              <>
                 <button
-                  key={category.id}
-                  onClick={() => setSelectedCategory(category.id)}
+                  onClick={() => setSelectedCategory(null)}
                   className={`px-4 py-2 font-medium border-4 border-black transition ${
-                    selectedCategory === category.id
+                    !selectedCategory
                       ? 'bg-black text-white'
                       : 'bg-white hover:bg-gray-100'
                   }`}
                 >
-                  {category.name}
+                  All
                 </button>
-              ))}
-            </div>
-          )}
+                {categories.map(category => (
+                  <button
+                    key={category.id}
+                    onClick={() => setSelectedCategory(category.id)}
+                    className={`px-4 py-2 font-medium border-4 border-black transition ${
+                      selectedCategory === category.id
+                        ? 'bg-black text-white'
+                        : 'bg-white hover:bg-gray-100'
+                    }`}
+                  >
+                    {category.name}
+                  </button>
+                ))}
+              </>
+            )}
+            {isEditingCategory ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={categoryName}
+                  onChange={(e) => setCategoryName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleCreateCategory(); if (e.key === 'Escape') { setIsEditingCategory(false); setCategoryName('') } }}
+                  className="px-3 py-1.5 text-sm font-medium border-4 border-black focus:outline-none focus:ring-2 focus:ring-purple-400"
+                  placeholder="Category name..."
+                  autoFocus
+                />
+                <button onClick={handleCreateCategory} className="px-3 py-1.5 bg-black text-white text-sm font-bold hover:bg-gray-800 transition border-4 border-black">Save</button>
+                <button onClick={() => { setIsEditingCategory(false); setCategoryName('') }} className="px-3 py-1.5 bg-white text-sm font-bold border-4 border-black hover:bg-gray-100 transition">✕</button>
+              </div>
+            ) : (
+              <button
+                onClick={() => { setIsEditingCategory(true); setCategoryName('') }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border-4 border-black bg-white hover:bg-purple-100 transition"
+              >
+                <Icon name="plus" size={14} />
+                New Category
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
