@@ -34,6 +34,7 @@ export function Dashboard() {
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
+  const [addModalMode, setAddModalMode] = useState<'link' | 'image' | 'file'>('link')
   const [showSettings, setShowSettings] = useState(false)
   const [showExport, setShowExport] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -115,6 +116,11 @@ export function Dashboard() {
       (link.tags ?? []).some(t => t.toLowerCase().includes(q))
     return matchesFolder && matchesSearch
   })
+
+  const openAddModal = (mode: 'link' | 'image' | 'file' = 'link') => {
+    setAddModalMode(mode)
+    setShowAddModal(true)
+  }
 
   const handleAddLink = async (linkData: Partial<Link>) => {
     if (!user) return
@@ -329,14 +335,30 @@ export function Dashboard() {
               <h2 className="text-4xl font-bold mb-2" style={{ fontStyle: 'italic' }}>Keep</h2>
             </div>
 
-            {/* Primary add action */}
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="w-full bg-primary-600 hover:bg-primary-700 text-white border-4 border-black rounded-full p-5 text-2xl font-bold transition shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
-            >
-              <Icon name="plus" size={28} />
-              Add URL, Image or File
-            </button>
+            {/* Add actions — one per type so intent is obvious */}
+            <div className="space-y-3">
+              <button
+                onClick={() => openAddModal('link')}
+                className="w-full bg-primary-600 hover:bg-primary-700 text-white border-4 border-black rounded-full p-5 text-xl font-bold transition shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
+              >
+                <Icon name="link" size={24} />
+                Save a URL
+              </button>
+              <button
+                onClick={() => openAddModal('image')}
+                className="w-full bg-yellow-100 hover:bg-yellow-200 border-4 border-black rounded-full p-5 text-xl font-bold transition shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
+              >
+                <Icon name="image" size={24} />
+                Upload an Image
+              </button>
+              <button
+                onClick={() => openAddModal('file')}
+                className="w-full bg-purple-100 hover:bg-purple-200 border-4 border-black rounded-full p-5 text-xl font-bold transition shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
+              >
+                <Icon name="file" size={24} />
+                Upload a File or PDF
+              </button>
+            </div>
 
             <div className="border-t border-gray-200 pt-4 space-y-3">
               <p className="text-sm text-gray-500 text-center font-medium">Browse your collection</p>
@@ -344,7 +366,7 @@ export function Dashboard() {
                 onClick={() => setActiveTab('links')}
                 className="w-full bg-purple-100 border-4 border-black rounded-full p-5 text-xl font-medium hover:bg-purple-200 transition shadow-lg hover:shadow-xl"
               >
-                URLs & Images
+                URLs &amp; Images
               </button>
 
               <button
@@ -408,11 +430,18 @@ export function Dashboard() {
                     </div>
                   )}
                   <button
-                    onClick={() => setShowAddModal(true)}
+                    onClick={() => openAddModal('link')}
                     className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition font-medium"
                   >
-                    <Icon name="plus" size={20} />
-                    Add
+                    <Icon name="link" size={16} />
+                    URL
+                  </button>
+                  <button
+                    onClick={() => openAddModal('image')}
+                    className="flex items-center gap-2 px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-black rounded-lg transition font-medium"
+                  >
+                    <Icon name="image" size={16} />
+                    Image
                   </button>
                 </div>
               )}
@@ -513,14 +542,30 @@ export function Dashboard() {
                           </>
                         ) : (
                           <>
-                            <p className="text-gray-600 mb-4">No links yet</p>
-                            <button
-                              onClick={() => setShowAddModal(true)}
-                              className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition font-medium"
-                            >
-                              <Icon name="plus" size={20} />
-                              Add your first URL or image
-                            </button>
+                            <p className="text-gray-600 mb-5">Nothing saved yet</p>
+                            <div className="flex flex-col items-center gap-3">
+                              <button
+                                onClick={() => openAddModal('link')}
+                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition font-medium"
+                              >
+                                <Icon name="link" size={16} />
+                                Save a URL
+                              </button>
+                              <button
+                                onClick={() => openAddModal('image')}
+                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-yellow-400 hover:bg-yellow-500 text-black rounded-lg transition font-medium"
+                              >
+                                <Icon name="image" size={16} />
+                                Upload an Image
+                              </button>
+                              <button
+                                onClick={() => openAddModal('file')}
+                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-purple-100 hover:bg-purple-200 text-gray-800 rounded-lg transition font-medium"
+                              >
+                                <Icon name="file" size={16} />
+                                Upload a File
+                              </button>
+                            </div>
                           </>
                         )}
                       </div>
@@ -538,7 +583,7 @@ export function Dashboard() {
                         </div>
                       </div>
                     )}
-                    <SavedGallery contentType="file" onAdd={() => setShowAddModal(true)} />
+                    <SavedGallery contentType="file" onAdd={() => openAddModal('file')} />
                   </>
                 ) : activeTab === 'pdfs' ? (
                   <>
@@ -552,7 +597,7 @@ export function Dashboard() {
                         </div>
                       </div>
                     )}
-                    <SavedGallery contentType="pdf" onAdd={() => setShowAddModal(true)} />
+                    <SavedGallery contentType="pdf" onAdd={() => openAddModal('file')} />
                   </>
                 ) : activeTab === 'bury' ? (
                   <div className="space-y-8">
@@ -573,8 +618,8 @@ export function Dashboard() {
                     )}
                     <div>
                       {buriedLinks.length > 0 && <h2 className="text-lg font-semibold text-gray-900 mb-4">Cloud Images &amp; Files</h2>}
-                      <SavedGallery contentType="image" status="bury" onAdd={() => setShowAddModal(true)} />
-                      <SavedGallery contentType="file" status="bury" onAdd={() => setShowAddModal(true)} />
+                      <SavedGallery contentType="image" status="bury" onAdd={() => openAddModal('image')} />
+                      <SavedGallery contentType="file" status="bury" onAdd={() => openAddModal('file')} />
                     </div>
                     {buriedLinks.length === 0 && (
                       <div className="text-center py-8 text-gray-500 text-sm">
@@ -597,6 +642,7 @@ export function Dashboard() {
           folders={folders}
           isPremium={user?.is_premium ?? false}
           userId={user?.id ?? ''}
+          initialMode={addModalMode}
           currentStatus={
             activeTab === 'borrow' ? 'borrow'
             : activeTab === 'share' ? 'share'

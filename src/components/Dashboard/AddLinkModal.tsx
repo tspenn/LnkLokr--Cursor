@@ -23,6 +23,7 @@ interface AddLinkModalProps {
   isPremium: boolean
   userId: string
   currentStatus?: 'keep' | 'borrow' | 'share' | 'bury'
+  initialMode?: ContentMode
   onAdd: (link: Partial<Link>) => void
   onClose: () => void
 }
@@ -32,10 +33,11 @@ export function AddLinkModal({
   isPremium,
   userId,
   currentStatus = 'keep',
+  initialMode = 'link',
   onAdd,
   onClose,
 }: AddLinkModalProps) {
-  const [mode, setMode] = useState<ContentMode>('link')
+  const [mode, setMode] = useState<ContentMode>(initialMode)
   const [formData, setFormData] = useState({
     url: '',
     title: '',
