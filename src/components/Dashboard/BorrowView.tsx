@@ -75,14 +75,12 @@ export function BorrowView({ onBack, onShowAdd }: BorrowViewProps) {
       // Links: route through dataService (local for free, cloud for paid)
       const borrowedLinks = await getLinksByStatus(isPremium, user.id, 'borrow')
 
-      // saved_items are always cloud (extension = Pro feature)
+      // saved_items are cloud-only (premium); categories available to all users
       const [savedRes, categoriesRes] = await Promise.all([
         isPremium
           ? supabase.from('saved_items').select('*').eq('user_id', user.id).eq('status', 'borrow').order('created_at', { ascending: false })
           : Promise.resolve({ data: [] }),
-        isPremium
-          ? supabase.from('borrow_categories').select('*').eq('user_id', user.id).order('position')
-          : Promise.resolve({ data: [] }),
+        supabase.from('borrow_categories').select('*').eq('user_id', user.id).order('position'),
       ])
 
       const linksRes = { data: borrowedLinks }
@@ -94,7 +92,7 @@ export function BorrowView({ onBack, onShowAdd }: BorrowViewProps) {
         url: link.url,
         thumbnail: link.thumbnail_url || null,
         icon: null,
-        content_type: 'url',
+        content_type: link.content_type || 'url',
         created_at: link.created_at,
         category_id: link.category_id ?? null,
       }))

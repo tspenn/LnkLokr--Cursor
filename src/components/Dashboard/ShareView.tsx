@@ -72,7 +72,7 @@ export function ShareView({ onBack }: ShareViewProps) {
         url: link.url,
         thumbnail: link.thumbnail_url || null,
         icon: null,
-        content_type: 'url',
+        content_type: link.content_type || 'url',
         created_at: link.created_at,
       }))
 
