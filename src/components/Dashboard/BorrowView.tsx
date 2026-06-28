@@ -27,7 +27,7 @@ interface BorrowViewProps {
   onShowAdd?: (mode: 'link' | 'image' | 'file') => void
 }
 
-export function BorrowView({ onBack, onShowAdd }: BorrowViewProps) {
+export function BorrowView({ onShowAdd }: BorrowViewProps) {
   const { user } = useAuth()
   const toast = useToast()
   const [filter, setFilter] = useState<FilterType>('all')
@@ -38,6 +38,8 @@ export function BorrowView({ onBack, onShowAdd }: BorrowViewProps) {
   const [categoryName, setCategoryName] = useState('')
   const [activeMenu, setActiveMenu] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     if (!user) return
@@ -212,6 +214,53 @@ export function BorrowView({ onBack, onShowAdd }: BorrowViewProps) {
     }
   }
 
+  const toggleSelect = (key: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
+  }
+
+  const selectAll = () => setSelectedIds(new Set(filteredItems.map(i => `${i.type}-${i.id}`)))
+  const clearSelection = () => setSelectedIds(new Set())
+
+  const handleDeleteSelected = async () => {
+    if (!user || selectedIds.size === 0) return
+    const isPremium = user.is_premium ?? false
+    const toDelete = filteredItems.filter(i => selectedIds.has(`${i.type}-${i.id}`))
+    try {
+      await Promise.all(toDelete.map(item =>
+        item.type === 'link'
+          ? deleteLink(isPremium, user.id, item.id)
+          : supabase.from('saved_items').delete().eq('id', item.id)
+      ))
+      toast.success(`Deleted ${toDelete.length} item${toDelete.length !== 1 ? 's' : ''}`)
+      setSelectedIds(new Set())
+      setSelectMode(false)
+      loadData()
+    } catch {
+      toast.error('Failed to delete some items')
+    }
+  }
+
+  const handleEmptyBorrow = async () => {
+    if (!user || items.length === 0) return
+    const isPremium = user.is_premium ?? false
+    if (!confirm(`Delete all ${items.length} item${items.length !== 1 ? 's' : ''} from Borrow?`)) return
+    try {
+      await Promise.all(items.map(item =>
+        item.type === 'link'
+          ? deleteLink(isPremium, user.id, item.id)
+          : supabase.from('saved_items').delete().eq('id', item.id)
+      ))
+      toast.success('Borrow cleared')
+      loadData()
+    } catch {
+      toast.error('Failed to clear Borrow')
+    }
+  }
+
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return bytes + ' B'
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
@@ -230,43 +279,88 @@ export function BorrowView({ onBack, onShowAdd }: BorrowViewProps) {
     <div className="flex flex-col h-full">
       <div className="bg-purple-200 border-b-4 border-black px-6 py-4">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between mb-3">
-            {onBack && (
-              <button
-                onClick={onBack}
-                className="flex items-center gap-2 text-gray-700 hover:text-gray-900 font-medium transition"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M19 12H5M5 12L12 19M5 12L12 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                Back to Menu
-              </button>
-            )}
+          <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
             {onShowAdd && (
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => onShowAdd('link')}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-black hover:bg-gray-800 text-white rounded-lg font-medium transition text-sm"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-100 hover:bg-purple-200 border-2 border-black text-black rounded-lg font-medium transition text-sm"
                 >
                   <Icon name="link" size={14} />
                   URL
                 </button>
                 <button
                   onClick={() => onShowAdd('image')}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition text-sm"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-pink-100 hover:bg-pink-200 border-2 border-black text-black rounded-lg font-medium transition text-sm"
                 >
                   <Icon name="image" size={14} />
                   Image
                 </button>
                 <button
                   onClick={() => onShowAdd('file')}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-purple-100 hover:bg-purple-200 border-2 border-black text-black rounded-lg font-medium transition text-sm"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-lavender-100 hover:bg-purple-100 border-2 border-black text-black rounded-lg font-medium transition text-sm"
+                  style={{ backgroundColor: '#ede9fe' }}
                 >
                   <Icon name="file" size={14} />
                   File
                 </button>
               </div>
             )}
+            <div className="flex items-center gap-2">
+              {items.length > 0 && (
+                <>
+                  {selectMode ? (
+                    <>
+                      <button
+                        onClick={selectAll}
+                        className="px-3 py-1.5 text-sm border-2 border-black bg-white hover:bg-purple-50 rounded-lg font-medium transition"
+                      >
+                        All
+                      </button>
+                      <button
+                        onClick={clearSelection}
+                        className="px-3 py-1.5 text-sm border-2 border-black bg-white hover:bg-purple-50 rounded-lg font-medium transition"
+                      >
+                        None
+                      </button>
+                      {selectedIds.size > 0 && (
+                        <button
+                          onClick={handleDeleteSelected}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-red-100 hover:bg-red-200 border-2 border-red-400 text-red-700 rounded-lg font-medium transition"
+                        >
+                          <Icon name="trash" size={14} />
+                          Delete {selectedIds.size}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => { setSelectMode(false); clearSelection() }}
+                        className="px-3 py-1.5 text-sm border-2 border-black bg-white hover:bg-gray-100 rounded-lg font-medium transition"
+                      >
+                        Done
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => setSelectMode(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white border-2 border-black hover:bg-purple-50 rounded-lg font-medium transition"
+                      >
+                        <Icon name="check-circle" size={14} />
+                        Select
+                      </button>
+                      <button
+                        onClick={handleEmptyBorrow}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-red-50 hover:bg-red-100 border-2 border-red-300 text-red-600 rounded-lg font-medium transition"
+                        title="Delete everything in Borrow"
+                      >
+                        <Icon name="trash" size={14} />
+                        Empty
+                      </button>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
           </div>
 
           <h2 className="text-4xl font-bold" style={{ fontStyle: 'italic' }}>
@@ -382,10 +476,14 @@ export function BorrowView({ onBack, onShowAdd }: BorrowViewProps) {
         <div className="max-w-7xl mx-auto">
           {filteredItems.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filteredItems.map(item => (
+              {filteredItems.map(item => {
+                const key = `${item.type}-${item.id}`
+                const isSelected = selectedIds.has(key)
+                return (
                 <div
-                  key={`${item.type}-${item.id}`}
-                  className="bg-white border-4 border-black hover:shadow-lg transition relative group"
+                  key={key}
+                  onClick={selectMode ? () => toggleSelect(key) : undefined}
+                  className={`bg-white border-4 border-black hover:shadow-lg transition relative group ${selectMode ? 'cursor-pointer' : ''} ${isSelected ? 'ring-4 ring-purple-400 ring-offset-2' : ''}`}
                 >
                   {item.thumbnail ? (
                     <div className="relative aspect-video bg-gray-200">
@@ -438,7 +536,13 @@ export function BorrowView({ onBack, onShowAdd }: BorrowViewProps) {
                     </div>
                   )}
 
-                  <div className="absolute top-2 right-2">
+                  {selectMode && (
+                    <div className={`absolute top-2 left-2 w-6 h-6 rounded-full border-2 border-black flex items-center justify-center ${isSelected ? 'bg-purple-400' : 'bg-white'}`}>
+                      {isSelected && <Icon name="check-circle" size={12} className="text-white" />}
+                    </div>
+                  )}
+
+                  {!selectMode && <div className="absolute top-2 right-2">
                     <button
                       onClick={() => setActiveMenu(activeMenu === `${item.type}-${item.id}` ? null : `${item.type}-${item.id}`)}
                       className="p-2 bg-white border-2 border-black hover:bg-gray-100 transition"
@@ -518,9 +622,10 @@ export function BorrowView({ onBack, onShowAdd }: BorrowViewProps) {
                         </button>
                       </div>
                     )}
-                  </div>
+                  </div>}
                 </div>
-              ))}
+                )
+              })}
             </div>
           ) : (
             <div className="text-center py-12">
@@ -530,21 +635,22 @@ export function BorrowView({ onBack, onShowAdd }: BorrowViewProps) {
                 <div className="flex flex-col items-center gap-3">
                   <button
                     onClick={() => onShowAdd('link')}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-black hover:bg-gray-800 text-white rounded-lg transition font-medium"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-purple-100 hover:bg-purple-200 border-2 border-black text-black rounded-lg transition font-medium"
                   >
                     <Icon name="link" size={16} />
                     Save a URL
                   </button>
                   <button
                     onClick={() => onShowAdd('image')}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition font-medium"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-pink-100 hover:bg-pink-200 border-2 border-black text-black rounded-lg transition font-medium"
                   >
                     <Icon name="image" size={16} />
                     Upload an Image
                   </button>
                   <button
                     onClick={() => onShowAdd('file')}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-purple-100 hover:bg-purple-200 border-2 border-black text-black rounded-lg transition font-medium"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 border-2 border-black text-black rounded-lg transition font-medium"
+                    style={{ backgroundColor: '#ede9fe' }}
                   >
                     <Icon name="file" size={16} />
                     Upload a File
