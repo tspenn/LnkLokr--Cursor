@@ -13,12 +13,13 @@ import { SettingsPanel } from './SettingsPanel'
 import { SavedGallery } from './SavedGallery'
 import { ExportPanel } from './ExportPanel'
 import { BorrowView } from './BorrowView'
+import { BuryView } from './BuryView'
 import { ShareView } from './ShareView'
 import { TickerTapeAd } from './TickerTapeAd'
 import { EditLinkModal } from './EditLinkModal'
 import { Header } from '../shared/Header'
 import { Icon } from '../shared/Icon'
-import { getLinksByStatus } from '@/lib/dataService'
+
 
 type TabView = 'menu' | 'keep' | 'borrow' | 'share' | 'links' | 'files' | 'pdfs' | 'bury'
 
@@ -40,7 +41,7 @@ export function Dashboard() {
   const [showSettings, setShowSettings] = useState(false)
   const [showExport, setShowExport] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-  const [buriedLinks, setBuriedLinks] = useState<Link[]>([])
+
   const [buryPassword, setBuryPassword] = useState<string | null>(null)
   const [buryUnlocked, setBuryUnlocked] = useState(false)
   const [buryPasswordInput, setBuryPasswordInput] = useState('')
@@ -205,13 +206,8 @@ export function Dashboard() {
     }
   }
 
-  const openBury = async () => {
+  const openBury = () => {
     setActiveTab('bury')
-    // Load buried links (URLs + OPFS files stored in links table)
-    if (user) {
-      const buried = await getLinksByStatus(user.is_premium ?? false, user.id, 'bury')
-      setBuriedLinks(buried)
-    }
   }
 
   const handleBuryClick = () => {
@@ -273,23 +269,11 @@ export function Dashboard() {
     }
   }
 
-  const handleDeleteBuriedLink = async (id: string) => {
-    if (!user) return
-    try {
-      await deleteLink(user.is_premium ?? false, user.id, id)
-      setBuriedLinks(prev => prev.filter(l => l.id !== id))
-      toast.success('Removed from Bury')
-    } catch {
-      toast.error('Failed to delete')
-    }
-  }
-
   const handleEditLink = async (id: string, updates: Partial<import('@/types').Link>) => {
     if (!user) return
     try {
       await updateLink(user.is_premium ?? false, user.id, id, updates)
       setLinks(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l))
-      setBuriedLinks(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l))
       setEditingLink(null)
       toast.success('Updated!')
     } catch {
@@ -685,34 +669,10 @@ export function Dashboard() {
                     <SavedGallery contentType="pdf" onAdd={() => openAddModal('file')} />
                   </>
                 ) : activeTab === 'bury' ? (
-                  <div className="space-y-8">
-                    {buriedLinks.length > 0 && (
-                      <div>
-                        <h2 className="text-lg font-semibold text-gray-900 mb-4">URLs &amp; Local Files</h2>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                          {buriedLinks.map(link => (
-                            <LinkCard
-                              key={link.id}
-                              link={link}
-                              onDelete={() => handleDeleteBuriedLink(link.id)}
-                              onEdit={() => setEditingLink(link)}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    <div>
-                      {buriedLinks.length > 0 && <h2 className="text-lg font-semibold text-gray-900 mb-4">Cloud Images &amp; Files</h2>}
-                      <SavedGallery contentType="image" status="bury" onAdd={() => openAddModal('image')} />
-                      <SavedGallery contentType="file" status="bury" onAdd={() => openAddModal('file')} />
-                    </div>
-                    {buriedLinks.length === 0 && (
-                      <div className="text-center py-8 text-gray-500 text-sm">
-                        <p>Nothing buried yet.</p>
-                        <p className="text-xs mt-1">Items you add here are password protected.</p>
-                      </div>
-                    )}
-                  </div>
+                  <BuryView
+                    onShowAdd={(mode) => openAddModal(mode)}
+                    onEdit={(link) => setEditingLink(link)}
+                  />
                 ) : (
                   <SavedGallery contentType="image" />
                 )}

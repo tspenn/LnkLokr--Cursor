@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
 import { Link } from '@/types'
 import { useAuth } from '@/context/AuthContext'
 import { updateLink } from '@/lib/dataService'
@@ -11,9 +11,10 @@ interface LinkCardProps {
   onDelete: () => void
   onEdit?: () => void
   onCopySuccess?: () => void
+  extraMenu?: ReactNode
 }
 
-export function LinkCard({ link, onDelete, onEdit, onCopySuccess }: LinkCardProps) {
+export function LinkCard({ link, onDelete, onEdit, onCopySuccess, extraMenu }: LinkCardProps) {
   const { user } = useAuth()
   const [isFavorite, setIsFavorite] = useState(link.is_favorite)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -242,6 +243,7 @@ export function LinkCard({ link, onDelete, onEdit, onCopySuccess }: LinkCardProp
               <Icon name="edit" size={14} />
             </button>
           )}
+          {extraMenu}
           <button
             onClick={handleDelete}
             title="Delete"
