@@ -244,6 +244,7 @@ export function Dashboard() {
         onUpgrade={() => window.open(PURCHASE_URL, '_blank', 'noopener,noreferrer')}
         onSettings={() => setShowSettings(true)}
         onSignOut={signOut}
+        onBack={activeTab !== 'menu' ? () => setActiveTab('menu') : undefined}
       />
 
       <main className={`flex-1 bg-gradient-to-b from-white via-pink-50 to-pink-100 border-x-4 border-b-4 border-black relative overflow-auto ${!user?.is_premium ? 'pb-12' : ''}`}>
@@ -339,21 +340,21 @@ export function Dashboard() {
             <div className="space-y-3">
               <button
                 onClick={() => openAddModal('link')}
-                className="w-full bg-black hover:bg-gray-900 text-white border-4 border-black rounded-full p-5 text-xl font-bold transition shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
+                className="w-full bg-purple-200 hover:bg-purple-300 border-4 border-black rounded-full p-5 text-xl font-bold transition shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
               >
                 <Icon name="link" size={24} />
                 Save a URL
               </button>
               <button
                 onClick={() => openAddModal('image')}
-                className="w-full bg-yellow-300 hover:bg-yellow-400 border-4 border-black rounded-full p-5 text-xl font-bold transition shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
+                className="w-full bg-yellow-100 hover:bg-yellow-200 border-4 border-black rounded-full p-5 text-xl font-bold transition shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
               >
                 <Icon name="image" size={24} />
                 Upload an Image
               </button>
               <button
                 onClick={() => openAddModal('file')}
-                className="w-full bg-yellow-100 hover:bg-yellow-200 border-4 border-black rounded-full p-5 text-xl font-bold transition shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
+                className="w-full bg-green-100 hover:bg-green-200 border-4 border-black rounded-full p-5 text-xl font-bold transition shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
               >
                 <Icon name="file" size={24} />
                 Upload a File or PDF
@@ -392,15 +393,6 @@ export function Dashboard() {
               />
             </div>
 
-            <button
-              onClick={() => setActiveTab('menu')}
-              className="w-full flex items-center justify-center gap-2 text-gray-600 hover:text-gray-900 font-medium py-3"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M19 12H5M5 12L12 19M5 12L12 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              Back to Menu
-            </button>
           </div>
         ) : (
           <div className="flex flex-col h-full bg-gray-50">
@@ -431,14 +423,14 @@ export function Dashboard() {
                   )}
                   <button
                     onClick={() => openAddModal('link')}
-                    className="flex items-center gap-2 px-4 py-2 bg-black hover:bg-gray-800 text-white rounded-lg transition font-medium"
+                    className="flex items-center gap-2 px-4 py-2 bg-purple-200 hover:bg-purple-300 border border-black rounded-lg transition font-medium"
                   >
                     <Icon name="link" size={16} />
                     URL
                   </button>
                   <button
                     onClick={() => openAddModal('image')}
-                    className="flex items-center gap-2 px-4 py-2 bg-yellow-300 hover:bg-yellow-400 text-black border border-black rounded-lg transition font-medium"
+                    className="flex items-center gap-2 px-4 py-2 bg-yellow-100 hover:bg-yellow-200 border border-black rounded-lg transition font-medium"
                   >
                     <Icon name="image" size={16} />
                     Image
@@ -546,21 +538,21 @@ export function Dashboard() {
                             <div className="flex flex-col items-center gap-3">
                               <button
                                 onClick={() => openAddModal('link')}
-                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-black hover:bg-gray-800 text-white rounded-lg transition font-medium"
+                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-purple-200 hover:bg-purple-300 border border-black rounded-lg transition font-medium"
                               >
                                 <Icon name="link" size={16} />
                                 Save a URL
                               </button>
                               <button
                                 onClick={() => openAddModal('image')}
-                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-yellow-300 hover:bg-yellow-400 text-black border border-black rounded-lg transition font-medium"
+                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-yellow-100 hover:bg-yellow-200 border border-black rounded-lg transition font-medium"
                               >
                                 <Icon name="image" size={16} />
                                 Upload an Image
                               </button>
                               <button
                                 onClick={() => openAddModal('file')}
-                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-yellow-100 hover:bg-yellow-200 text-black border border-black rounded-lg transition font-medium"
+                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-100 hover:bg-green-200 border border-black rounded-lg transition font-medium"
                               >
                                 <Icon name="file" size={16} />
                                 Upload a File
