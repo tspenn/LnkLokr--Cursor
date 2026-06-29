@@ -63,6 +63,19 @@ async function getAuthenticatedUser() {
   return userData.user
 }
 
+async function getUserIsPremium(userId) {
+  try {
+    const { data } = await supabase
+      .from('users')
+      .select('is_premium')
+      .eq('id', userId)
+      .single()
+    return data?.is_premium ?? false
+  } catch {
+    return false
+  }
+}
+
 // ─── Scrape OG metadata for a webpage URL ────────────────────────────────────
 async function scrapeMetadata(url) {
   try {
@@ -102,59 +115,70 @@ async function saveWebpageLink({ url, title, description, tabTitle }) {
   }
 }
 
-// ─── Upload a binary file (image/pdf/etc.) to Supabase Storage ───────────────
+// ─── Save an image/file — premium uploads to Storage; free saves the URL only ─
 async function saveFileToLnklokr(blob, metadata) {
   try {
     const user = await getAuthenticatedUser()
-
-    const timestamp = Date.now()
-    const urlPath = new URL(metadata.src).pathname
-    const originalFilename = urlPath.split('/').pop() || 'file'
-    const sanitizedFilename = originalFilename
-      .replace(/[^a-zA-Z0-9.-]/g, '_')
-      .replace(/_{2,}/g, '_')
-      .slice(0, 100)
-    const filename = `${user.id}/${timestamp}-${sanitizedFilename}`
+    const isPremium = await getUserIsPremium(user.id)
     const contentType = detectContentType(metadata.src, blob.type)
 
-    const { error: uploadError } = await supabase.storage
-      .from('saved-images')
-      .upload(filename, blob, {
-        contentType: blob.type,
-        cacheControl: '3600',
-        upsert: false,
-      })
-    if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`)
+    if (isPremium) {
+      // ── Premium: upload blob to Supabase Storage, record in links table ────
+      const timestamp = Date.now()
+      const urlPath = new URL(metadata.src).pathname
+      const originalFilename = urlPath.split('/').pop() || 'file'
+      const sanitizedFilename = originalFilename
+        .replace(/[^a-zA-Z0-9.-]/g, '_')
+        .replace(/_{2,}/g, '_')
+        .slice(0, 100)
+      const filename = `${user.id}/${timestamp}-${sanitizedFilename}`
 
-    const { data: publicUrlData } = supabase.storage.from('saved-images').getPublicUrl(filename)
+      const { error: uploadError } = await supabase.storage
+        .from('saved-images')
+        .upload(filename, blob, {
+          contentType: blob.type,
+          cacheControl: '3600',
+          upsert: false,
+        })
+      if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`)
 
-    const { data: recordData, error: recordError } = await supabase
-      .from('saved_items')
-      .insert({
+      const { data: publicUrlData } = supabase.storage.from('saved-images').getPublicUrl(filename)
+      const publicUrl = publicUrlData.publicUrl
+
+      const { error: recordError } = await supabase.from('links').insert({
         user_id: user.id,
-        storage_path: filename,
-        public_url: publicUrlData.publicUrl,
-        original_src: metadata.src,
+        url: publicUrl,
         title: metadata.title || originalFilename,
-        alt: metadata.alt || '',
-        page_title: metadata.pageTitle || '',
-        page_url: metadata.pageUrl || '',
-        mime_type: blob.type,
-        file_size: blob.size,
-        file_name: originalFilename,
-        content_type: contentType,
+        description: metadata.alt || null,
+        thumbnail_url: contentType === 'image' ? publicUrl : null,
         status: 'keep',
-        thumbnail_url: contentType === 'image' ? publicUrlData.publicUrl : null,
+        content_type: contentType,
+        tags: [],
+        is_favorite: false,
       })
-      .select('id')
-      .single()
 
-    if (recordError) {
-      await supabase.storage.from('saved-images').remove([filename])
-      throw new Error(`Metadata save failed: ${recordError.message}`)
+      if (recordError) {
+        await supabase.storage.from('saved-images').remove([filename])
+        throw new Error(`Metadata save failed: ${recordError.message}`)
+      }
+
+      return { success: true, data: { publicUrl, contentType } }
+    } else {
+      // ── Free tier: save just the source URL as a link (no blob upload) ────
+      const { error } = await supabase.from('links').insert({
+        user_id: user.id,
+        url: metadata.src,
+        title: metadata.title || metadata.alt || metadata.src,
+        description: metadata.alt || null,
+        thumbnail_url: contentType === 'image' ? metadata.src : null,
+        status: 'keep',
+        content_type: contentType,
+        tags: [],
+        is_favorite: false,
+      })
+      if (error) throw new Error(error.message)
+      return { success: true, data: { publicUrl: metadata.src, contentType } }
     }
-
-    return { success: true, data: { id: recordData.id, publicUrl: publicUrlData.publicUrl, contentType } }
   } catch (err) {
     return { success: false, error: err.message }
   }
