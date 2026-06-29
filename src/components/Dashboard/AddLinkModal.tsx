@@ -3,7 +3,8 @@ import { Folder, Link } from '@/types'
 import { Icon } from '../shared/Icon'
 import { supabase } from '@/lib/supabase'
 import { opfsStore, generateThumbnail } from '@/lib/opfsStore'
-import { addFolder } from '@/lib/dataService'
+import { addFolder, getFolders } from '@/lib/dataService'
+import type { FolderScope } from './FolderBar'
 
 type ContentMode = 'link' | 'image' | 'file'
 
@@ -24,6 +25,7 @@ interface AddLinkModalProps {
   isPremium: boolean
   userId: string
   currentStatus?: 'keep' | 'borrow' | 'share' | 'bury'
+  folderScope?: FolderScope
   initialMode?: ContentMode
   initialUrl?: string
   initialFile?: File
@@ -36,6 +38,7 @@ export function AddLinkModal({
   isPremium,
   userId,
   currentStatus = 'keep',
+  folderScope = 'keep',
   initialMode = 'link',
   initialUrl,
   initialFile,
@@ -57,6 +60,16 @@ export function AddLinkModal({
   const [showNewFolderInput, setShowNewFolderInput] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
   const [creatingFolder, setCreatingFolder] = useState(false)
+
+  // For non-Keep scopes, load the scoped folder list on mount
+  useEffect(() => {
+    if (folderScope !== 'keep') {
+      getFolders(true, userId, folderScope)
+        .then(setAllFolders)
+        .catch(() => {})
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [isScraping, setIsScraping] = useState(false)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -321,7 +334,11 @@ export function AddLinkModal({
     if (!name) return
     setCreatingFolder(true)
     try {
-      const created = await addFolder(false, userId, { name, position: allFolders.length })
+      const created = await addFolder(false, userId, {
+        name,
+        position: allFolders.length,
+        scope: folderScope,
+      })
       setAllFolders(prev => [...prev, created])
       setFormData(prev => ({ ...prev, folder_id: created.id }))
       setNewFolderName('')

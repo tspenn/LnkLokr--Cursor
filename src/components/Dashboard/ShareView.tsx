@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context/ToastContext'
 import { supabase } from '@/lib/supabase'
-import { getLinksByStatus, updateLink, deleteLink } from '@/lib/dataService'
-import { Link, SavedItem } from '@/types'
+import { getLinksByStatus, updateLink, deleteLink, getFolders } from '@/lib/dataService'
+import { Link, SavedItem, Folder } from '@/types'
 import { Icon } from '../shared/Icon'
+import { FolderBar } from './FolderBar'
+import { isProTier } from '@/lib/premiumService'
 
 type FilterType = 'all' | 'url' | 'image' | 'file'
 
@@ -19,6 +21,7 @@ interface ShareItem {
   file_name?: string
   file_size?: number
   created_at: string
+  folder_id?: string | null
 }
 
 interface ShareViewProps {
@@ -32,6 +35,8 @@ export function ShareView({ onBack }: ShareViewProps) {
   const [items, setItems] = useState<ShareItem[]>([])
   const [activeMenu, setActiveMenu] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [folders, setFolders] = useState<Folder[]>([])
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) return
@@ -56,12 +61,18 @@ export function ShareView({ onBack }: ShareViewProps) {
   const loadData = async () => {
     if (!user) return
     const isPremium = user.is_premium ?? false
+    const isPro = isProTier(isPremium, user.subscription_tier)
     try {
       const sharedLinks = await getLinksByStatus(isPremium, user.id, 'share')
 
-      const savedRes = isPremium
-        ? await supabase.from('saved_items').select('*').eq('user_id', user.id).eq('status', 'share').order('created_at', { ascending: false })
-        : { data: [] }
+      const [savedRes, foldersData] = await Promise.all([
+        isPremium
+          ? supabase.from('saved_items').select('*').eq('user_id', user.id).eq('status', 'share').order('created_at', { ascending: false })
+          : Promise.resolve({ data: [] }),
+        isPro ? getFolders(true, user.id, 'share') : Promise.resolve([]),
+      ])
+
+      if (isPro) setFolders(foldersData as Folder[])
 
       const linksRes = { data: sharedLinks }
 
@@ -74,6 +85,7 @@ export function ShareView({ onBack }: ShareViewProps) {
         icon: null,
         content_type: link.content_type || 'url',
         created_at: link.created_at,
+        folder_id: link.folder_id ?? null,
       }))
 
       const savedItems: ShareItem[] = (savedRes.data || []).map((item: SavedItem) => ({
@@ -85,6 +97,7 @@ export function ShareView({ onBack }: ShareViewProps) {
         file_name: item.file_name,
         file_size: item.file_size,
         created_at: item.created_at,
+        folder_id: item.folder_id ?? null,
       }))
 
       setItems(
@@ -186,11 +199,29 @@ export function ShareView({ onBack }: ShareViewProps) {
   }
 
   const filteredItems = items.filter(item => {
-    if (filter === 'url') return item.content_type === 'url' || item.type === 'link'
-    if (filter === 'image') return item.content_type === 'image'
-    if (filter === 'file') return item.content_type === 'file' || item.content_type === 'pdf'
-    return true
+    const matchesFolder = !selectedFolderId || item.folder_id === selectedFolderId
+    if (filter === 'url') return matchesFolder && (item.content_type === 'url' || item.type === 'link')
+    if (filter === 'image') return matchesFolder && item.content_type === 'image'
+    if (filter === 'file') return matchesFolder && (item.content_type === 'file' || item.content_type === 'pdf')
+    return matchesFolder
   })
+
+  const handleAssignFolder = async (itemId: string, itemType: 'link' | 'saved_item', folderId: string | null) => {
+    if (!user) return
+    try {
+      if (itemType === 'link') {
+        await updateLink(user.is_premium ?? false, user.id, itemId, { folder_id: folderId })
+      } else {
+        const { error } = await supabase.from('saved_items').update({ folder_id: folderId }).eq('id', itemId)
+        if (error) throw error
+      }
+      setActiveMenu(null)
+      toast.success(folderId ? 'Folder assigned' : 'Folder removed')
+      loadData()
+    } catch {
+      toast.error('Failed to assign folder')
+    }
+  }
 
   if (isLoading) {
     return (
@@ -216,6 +247,22 @@ export function ShareView({ onBack }: ShareViewProps) {
             </button>
           )}
           <h2 className="text-4xl font-bold" style={{ fontStyle: 'italic' }}>Share</h2>
+
+          {isProTier(user?.is_premium ?? false, user?.subscription_tier) && (
+            <div className="flex gap-2 mt-3 flex-wrap items-center">
+              <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide mr-1">Folders</span>
+              <FolderBar
+                scope="share"
+                userId={user!.id}
+                folders={folders}
+                selectedFolderId={selectedFolderId}
+                onSelectFolder={setSelectedFolderId}
+                onFolderCreated={(f) => setFolders(prev => [...prev, f])}
+                hoverClass="hover:bg-pink-100"
+                newBtnHoverClass="hover:bg-pink-100"
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -330,7 +377,7 @@ export function ShareView({ onBack }: ShareViewProps) {
                         <Icon name="more-vertical" size={15} />
                       </button>
 
-                      {activeMenu === `${item.type}-${item.id}` && (
+                        {activeMenu === `${item.type}-${item.id}` && (
                         <div className="absolute bottom-full right-0 mb-1 bg-white border-4 border-black shadow-lg z-10 min-w-48">
                           {item.url && (
                             <button
@@ -340,6 +387,24 @@ export function ShareView({ onBack }: ShareViewProps) {
                               <Icon name="external-link" size={16} />
                               Open
                             </button>
+                          )}
+                          {folders.length > 0 && (
+                            <div className="border-t border-gray-100">
+                              <p className="px-4 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">Folder</p>
+                              <button
+                                onClick={() => handleAssignFolder(item.id, item.type, null)}
+                                className={`w-full px-4 py-2 text-left hover:bg-gray-100 transition text-sm ${!item.folder_id ? 'font-bold' : ''}`}
+                              >None</button>
+                              {folders.map(f => (
+                                <button
+                                  key={f.id}
+                                  onClick={() => handleAssignFolder(item.id, item.type, f.id)}
+                                  className={`w-full px-4 py-2 text-left hover:bg-gray-100 transition text-sm ${item.folder_id === f.id ? 'font-bold text-pink-700' : ''}`}
+                                >
+                                  {item.folder_id === f.id ? '✓ ' : ''}{f.icon ? `${f.icon} ` : ''}{f.name}
+                                </button>
+                              ))}
+                            </div>
                           )}
                           <button
                             onClick={() => handleMoveItem(item.id, item.type, 'keep')}

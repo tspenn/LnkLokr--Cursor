@@ -22,6 +22,7 @@ export interface Folder {
   color?: string
   icon?: string
   position?: number
+  scope?: 'keep' | 'borrow' | 'share' | 'bury'
   created_at: string
   updated_at?: string
 }

@@ -818,6 +818,12 @@ export function Dashboard() {
             : activeTab === 'bury' ? 'bury'
             : 'keep'
           }
+          folderScope={
+            activeTab === 'borrow' ? 'borrow'
+            : activeTab === 'share' ? 'share'
+            : activeTab === 'bury' ? 'bury'
+            : 'keep'
+          }
           onAdd={handleAddLink}
           onClose={() => { setShowAddModal(false); setPastedUrl(undefined); setPastedFile(undefined) }}
         />
