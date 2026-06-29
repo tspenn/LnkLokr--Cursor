@@ -67,6 +67,7 @@ export function DreamKeeper() {
   const [allBoards, setAllBoards] = useState<SavedBoard[]>([])
   const [showBoardList, setShowBoardList] = useState(false)
   const autoSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
 
   // On mount: if no boardId, create a new one and redirect
   useEffect(() => {
@@ -240,6 +241,42 @@ export function DreamKeeper() {
     setSelectedId(newItem.id)
   }
 
+  const handleContextMenu = (e: React.MouseEvent) => {
+    // Only intercept on the canvas itself, not on items
+    e.preventDefault()
+    setContextMenu({ x: e.clientX, y: e.clientY })
+  }
+
+  const handlePasteFromMenu = async () => {
+    setContextMenu(null)
+    try {
+      const clipboardItems = await navigator.clipboard.read()
+      for (const item of clipboardItems) {
+        // Image data
+        const imageType = item.types.find(t => t.startsWith('image/'))
+        if (imageType) {
+          const blob = await item.getType(imageType)
+          const reader = new FileReader()
+          reader.onload = ev => {
+            const dataUrl = ev.target?.result as string
+            if (dataUrl) addImageItem(dataUrl)
+          }
+          reader.readAsDataURL(blob)
+          return
+        }
+        // URL text
+        if (item.types.includes('text/plain')) {
+          const blob = await item.getType('text/plain')
+          const text = (await blob.text()).trim()
+          if (/^https?:\/\/.+/i.test(text)) addImageItem(text)
+          return
+        }
+      }
+    } catch {
+      // User denied clipboard permission or clipboard is empty — fall back silently
+    }
+  }
+
   // Global paste handler — image data or image URL
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
@@ -373,7 +410,11 @@ export function DreamKeeper() {
       </header>
 
       {/* Canvas — fills all remaining vertical space; scrollable on mobile */}
-      <div className="flex-1 overflow-auto bg-green-50 p-2 sm:p-0">
+      <div
+        className="flex-1 overflow-auto bg-green-50 p-2 sm:p-0"
+        onContextMenu={handleContextMenu}
+        onClick={() => setContextMenu(null)}
+      >
         <div
           ref={canvasRef}
           className="relative w-full bg-white"
@@ -436,9 +477,25 @@ export function DreamKeeper() {
         </div>
       </div>
 
+      {/* Right-click context menu */}
+      {contextMenu && (
+        <div
+          className="fixed z-[9999] bg-white border-2 border-black shadow-lg rounded-lg overflow-hidden"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={e => e.stopPropagation()}
+        >
+          <button
+            className="flex items-center gap-2 w-full px-4 py-2.5 text-sm font-medium hover:bg-green-50 text-gray-800"
+            onClick={handlePasteFromMenu}
+          >
+            <span className="text-base">📋</span> Paste image or URL
+          </button>
+        </div>
+      )}
+
       {/* Footer hint */}
       <div className="flex-none py-2 text-center text-green-600/50 text-xs border-t border-green-100 bg-white/60">
-        Drag items to arrange · Double-click text to edit · Boards auto-save to this device
+        Drag items to arrange · Double-click text to edit · Right-click to paste · Boards auto-save to this device
       </div>
     </div>
   )

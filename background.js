@@ -88,7 +88,7 @@ async function scrapeMetadata(url) {
 }
 
 // ─── Save a webpage/URL link directly to the links table ─────────────────────
-async function saveWebpageLink({ url, title, description, tabTitle }) {
+async function saveWebpageLink({ url, title, description, tabTitle, status = 'keep' }) {
   try {
     const user = await getAuthenticatedUser()
 
@@ -102,7 +102,7 @@ async function saveWebpageLink({ url, title, description, tabTitle }) {
       description: meta?.description || description || null,
       thumbnail_url: meta?.thumbnail_url || null,
       icon: meta?.icon || null,
-      status: 'keep',
+      status,
       content_type: 'url',
       tags: [],
       is_favorite: false,
@@ -121,6 +121,7 @@ async function saveFileToLnklokr(blob, metadata) {
     const user = await getAuthenticatedUser()
     const isPremium = await getUserIsPremium(user.id)
     const contentType = detectContentType(metadata.src, blob.type)
+    const status = metadata.status || 'keep'
 
     if (isPremium) {
       // ── Premium: upload blob to Supabase Storage, record in links table ────
@@ -151,7 +152,7 @@ async function saveFileToLnklokr(blob, metadata) {
         title: metadata.title || originalFilename,
         description: metadata.alt || null,
         thumbnail_url: contentType === 'image' ? publicUrl : null,
-        status: 'keep',
+        status,
         content_type: contentType,
         tags: [],
         is_favorite: false,
@@ -171,7 +172,7 @@ async function saveFileToLnklokr(blob, metadata) {
         title: metadata.title || metadata.alt || metadata.src,
         description: metadata.alt || null,
         thumbnail_url: contentType === 'image' ? metadata.src : null,
-        status: 'keep',
+        status,
         content_type: contentType,
         tags: [],
         is_favorite: false,
@@ -185,18 +186,37 @@ async function saveFileToLnklokr(blob, metadata) {
 }
 
 // ─── Context menu setup ───────────────────────────────────────────────────────
+const STATUSES = ['keep', 'borrow', 'share', 'bury']
+const STATUS_LABELS = { keep: '📦 Keep', borrow: '🔄 Borrow', share: '📤 Share', bury: '🔒 Bury' }
+
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({ id: 'save-link', title: 'Save to LnkLokr', contexts: ['link'] })
-  chrome.contextMenus.create({ id: 'save-image', title: 'Save to LnkLokr', contexts: ['image'] })
-  chrome.contextMenus.create({ id: 'save-selection', title: 'Save to LnkLokr', contexts: ['selection'] })
+  // Parent items (shown on right-click)
+  chrome.contextMenus.create({ id: 'save-image', title: 'Save Image to LnkLokr…', contexts: ['image'] })
+  chrome.contextMenus.create({ id: 'save-link', title: 'Save Link to LnkLokr…', contexts: ['link'] })
+  chrome.contextMenus.create({ id: 'save-selection', title: 'Save Selection to LnkLokr…', contexts: ['selection'] })
+
+  // Sub-items — destination selector
+  for (const type of ['image', 'link', 'selection']) {
+    for (const status of STATUSES) {
+      chrome.contextMenus.create({
+        id: `${type}-${status}`,
+        title: STATUS_LABELS[status],
+        parentId: `save-${type}`,
+        contexts: [type === 'image' ? 'image' : type === 'link' ? 'link' : 'selection'],
+      })
+    }
+  }
 })
 
 // ─── Context menu click handler ───────────────────────────────────────────────
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (!tab?.id) return
 
-  // ── Save image (binary blob upload) ──────────────────────────────────────
-  if (info.menuItemId === 'save-image') {
+  const menuId = String(info.menuItemId)
+
+  // ── Save image ─────────────────────────────────────────────────────────────
+  if (menuId.startsWith('image-')) {
+    const status = menuId.replace('image-', '')
     const imageSrc = info.srcUrl
     if (!imageSrc) return
 
@@ -216,28 +236,29 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         pageUrl: tab.url || '',
         alt,
         title: alt || 'Saved Image',
+        status,
       }
 
       const result = await saveFileToLnklokr(blob, metadata)
       if (result.success) {
         const label = result.data.contentType === 'image' ? 'Image' : result.data.contentType === 'pdf' ? 'PDF' : 'File'
-        notify(`${label} Saved!`, `Successfully saved to ${label}s in LnkLokr`)
+        notify(`${label} saved to ${status.charAt(0).toUpperCase() + status.slice(1)}!`, 'Saved to LnkLokr')
       } else {
         notify('Save Failed', result.error || 'Failed to save', 2)
       }
-    } catch (err) {
-      notify('Error', 'Failed to fetch or save file', 2)
+    } catch {
+      notify('Error', 'Failed to fetch or save image', 2)
     }
     return
   }
 
-  // ── Save a link (right-click on hyperlink) ────────────────────────────────
-  if (info.menuItemId === 'save-link') {
+  // ── Save link ──────────────────────────────────────────────────────────────
+  if (menuId.startsWith('link-')) {
+    const status = menuId.replace('link-', '')
     const url = info.linkUrl || info.srcUrl || tab.url
     const contentType = detectContentType(url)
 
     if (contentType !== 'url') {
-      // Binary asset — upload to Storage
       try {
         const response = await fetch(url)
         const blob = await response.blob()
@@ -247,11 +268,12 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
           pageUrl: tab.url || '',
           alt: '',
           title: url.split('/').pop() || 'Saved File',
+          status,
         }
         const result = await saveFileToLnklokr(blob, metadata)
         if (result.success) {
           const label = result.data.contentType === 'image' ? 'Image' : result.data.contentType === 'pdf' ? 'PDF' : 'File'
-          notify(`${label} Saved!`, `Successfully saved to LnkLokr`)
+          notify(`${label} saved to ${status.charAt(0).toUpperCase() + status.slice(1)}!`, 'Saved to LnkLokr')
         } else {
           notify('Save Failed', result.error || 'Failed to save', 2)
         }
@@ -259,15 +281,9 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         notify('Error', 'Failed to fetch or save file', 2)
       }
     } else {
-      // Webpage URL — scrape metadata and insert into links table directly
-      const result = await saveWebpageLink({
-        url,
-        title: info.selectionText || url,
-        description: null,
-        tabTitle: tab.title,
-      })
+      const result = await saveWebpageLink({ url, title: info.selectionText || url, description: null, tabTitle: tab.title, status })
       if (result.success) {
-        notify('Link Saved!', 'Successfully saved to LnkLokr')
+        notify(`Link saved to ${status.charAt(0).toUpperCase() + status.slice(1)}!`, 'Saved to LnkLokr')
       } else {
         notify('Save Failed', result.error || 'Failed to save link', 2)
       }
@@ -275,17 +291,19 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     return
   }
 
-  // ── Save selection (right-click on selected text) ─────────────────────────
-  if (info.menuItemId === 'save-selection') {
+  // ── Save selected text ─────────────────────────────────────────────────────
+  if (menuId.startsWith('selection-')) {
+    const status = menuId.replace('selection-', '')
     const url = tab.url || ''
     const result = await saveWebpageLink({
       url,
       title: info.selectionText || tab.title || url,
       description: info.selectionText || null,
       tabTitle: tab.title,
+      status,
     })
     if (result.success) {
-      notify('Link Saved!', 'Successfully saved to LnkLokr')
+      notify(`Saved to ${status.charAt(0).toUpperCase() + status.slice(1)}!`, 'Saved to LnkLokr')
     } else {
       notify('Save Failed', result.error || 'Failed to save', 2)
     }

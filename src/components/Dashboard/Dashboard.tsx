@@ -38,6 +38,7 @@ export function Dashboard() {
   const [addModalMode, setAddModalMode] = useState<'link' | 'image' | 'file'>('link')
   const [pastedUrl, setPastedUrl] = useState<string | undefined>()
   const [pastedFile, setPastedFile] = useState<File | undefined>()
+  const [rightClickMenu, setRightClickMenu] = useState<{ x: number; y: number } | null>(null)
   const [showSettings, setShowSettings] = useState(false)
   const [showExport, setShowExport] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -180,6 +181,39 @@ export function Dashboard() {
     return () => window.removeEventListener('paste', handleGlobalPaste)
   }, [showAddModal])
 
+  // Right-click paste from clipboard (image data or URL)
+  const handleRightClickPaste = async () => {
+    setRightClickMenu(null)
+    try {
+      const clipboardItems = await navigator.clipboard.read()
+      for (const item of clipboardItems) {
+        const imageType = item.types.find(t => t.startsWith('image/'))
+        if (imageType) {
+          const blob = await item.getType(imageType)
+          const file = new File([blob], 'pasted-image.png', { type: blob.type })
+          setPastedFile(file)
+          setPastedUrl(undefined)
+          setAddModalMode('image')
+          setShowAddModal(true)
+          return
+        }
+        if (item.types.includes('text/plain')) {
+          const blob = await item.getType('text/plain')
+          const text = (await blob.text()).trim()
+          if (!text) return
+          setPastedUrl(text)
+          setPastedFile(undefined)
+          const isImageUrl = /\.(jpe?g|png|gif|webp|svg|avif|bmp|ico)(\?.*)?$/i.test(text)
+          setAddModalMode(isImageUrl ? 'image' : 'link')
+          setShowAddModal(true)
+          return
+        }
+      }
+    } catch {
+      // Clipboard permission denied or empty — ignore
+    }
+  }
+
   const handleAddLink = async (linkData: Partial<Link>) => {
     if (!user) return
     try {
@@ -309,7 +343,30 @@ export function Dashboard() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    <div
+      className="flex flex-col h-screen bg-gray-50"
+      onContextMenu={e => {
+        const target = e.target as HTMLElement
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
+        e.preventDefault()
+        setRightClickMenu({ x: e.clientX, y: e.clientY })
+      }}
+      onClick={() => setRightClickMenu(null)}
+    >
+      {rightClickMenu && (
+        <div
+          className="fixed z-[9999] bg-white border-2 border-black shadow-lg rounded-lg overflow-hidden"
+          style={{ left: rightClickMenu.x, top: rightClickMenu.y }}
+          onClick={e => e.stopPropagation()}
+        >
+          <button
+            className="flex items-center gap-2 w-full px-4 py-2.5 text-sm font-medium hover:bg-pink-50 text-gray-800"
+            onClick={handleRightClickPaste}
+          >
+            <span className="text-base">📋</span> Paste image or URL
+          </button>
+        </div>
+      )}
       <Header
         email={user?.email}
         isPremium={user?.is_premium}
