@@ -88,9 +88,14 @@ export async function addFolder(
   _isPremium: boolean,
   userId: string,
   folderData: Partial<Folder>,
-): Promise<void> {
-  const { error } = await supabase.from('folders').insert({ ...folderData, user_id: userId })
+): Promise<Folder> {
+  const { data, error } = await supabase
+    .from('folders')
+    .insert({ ...folderData, user_id: userId })
+    .select()
+    .single()
   if (error) throw error
+  return data as Folder
 }
 
 export async function deleteFolder(

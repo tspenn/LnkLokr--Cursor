@@ -3,6 +3,7 @@ import { Folder, Link } from '@/types'
 import { Icon } from '../shared/Icon'
 import { supabase } from '@/lib/supabase'
 import { opfsStore, generateThumbnail } from '@/lib/opfsStore'
+import { addFolder } from '@/lib/dataService'
 
 type ContentMode = 'link' | 'image' | 'file'
 
@@ -52,6 +53,10 @@ export function AddLinkModal({
   const [tagInput, setTagInput] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [allFolders, setAllFolders] = useState<Folder[]>(folders)
+  const [showNewFolderInput, setShowNewFolderInput] = useState(false)
+  const [newFolderName, setNewFolderName] = useState('')
+  const [creatingFolder, setCreatingFolder] = useState(false)
   const [isScraping, setIsScraping] = useState(false)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -311,6 +316,23 @@ export function AddLinkModal({
     } finally { setIsLoading(false) }
   }
 
+  const handleCreateFolder = async () => {
+    const name = newFolderName.trim()
+    if (!name) return
+    setCreatingFolder(true)
+    try {
+      const created = await addFolder(false, userId, { name, position: allFolders.length })
+      setAllFolders(prev => [...prev, created])
+      setFormData(prev => ({ ...prev, folder_id: created.id }))
+      setNewFolderName('')
+      setShowNewFolderInput(false)
+    } catch {
+      setError('Failed to create folder')
+    } finally {
+      setCreatingFolder(false)
+    }
+  }
+
   const handleAddTag = () => {
     if (tagInput.trim() && !formData.tags.includes(tagInput.trim())) {
       setFormData(prev => ({ ...prev, tags: [...prev.tags, tagInput.trim()] }))
@@ -362,18 +384,63 @@ export function AddLinkModal({
       </div>
 
       <div className="space-y-2">
-        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">Folder</label>
-        <select
-          value={formData.folder_id || ''}
-          onChange={(e) => setFormData(prev => ({ ...prev, folder_id: e.target.value || null }))}
-          disabled={isLoading}
-          className="input-field"
-        >
-          <option value="">No folder</option>
-          {folders.map(f => (
-            <option key={f.id} value={f.id}>{f.icon} {f.name}</option>
-          ))}
-        </select>
+        <div className="flex items-center justify-between">
+          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">Folder</label>
+          {!showNewFolderInput && (
+            <button
+              type="button"
+              onClick={() => setShowNewFolderInput(true)}
+              className="flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 font-medium"
+            >
+              <Icon name="plus" size={13} /> New folder
+            </button>
+          )}
+        </div>
+
+        {showNewFolderInput ? (
+          <div className="flex gap-2">
+            <input
+              autoFocus
+              type="text"
+              value={newFolderName}
+              onChange={e => setNewFolderName(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') { e.preventDefault(); handleCreateFolder() }
+                if (e.key === 'Escape') { setShowNewFolderInput(false); setNewFolderName('') }
+              }}
+              placeholder="Folder name"
+              disabled={creatingFolder}
+              className="input-field flex-1 text-sm"
+            />
+            <button
+              type="button"
+              onClick={handleCreateFolder}
+              disabled={creatingFolder || !newFolderName.trim()}
+              className="px-3 py-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition"
+            >
+              {creatingFolder ? '…' : 'Create'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowNewFolderInput(false); setNewFolderName('') }}
+              className="px-2 py-2 text-gray-500 hover:text-gray-700 rounded-lg text-sm"
+            >
+              ✕
+            </button>
+          </div>
+        ) : (
+          <select
+            value={formData.folder_id || ''}
+            onChange={(e) => setFormData(prev => ({ ...prev, folder_id: e.target.value || null }))}
+            disabled={isLoading}
+            className="input-field"
+          >
+            <option value="">No folder</option>
+            {allFolders.map(f => (
+              <option key={f.id} value={f.id}>{f.icon} {f.name}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       {mode === 'link' && (
