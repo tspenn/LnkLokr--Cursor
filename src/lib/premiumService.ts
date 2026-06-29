@@ -185,4 +185,14 @@ export function resolveTierKey(isPremium: boolean, planName?: string | null): Ti
   return 'solo'
 }
 
+/**
+ * Returns true when the user is on the highest (Pro) tier.
+ * Includes 'complimentary' and 'premium' legacy values.
+ */
+export function isProTier(isPremium: boolean, subscriptionTier?: string | null): boolean {
+  if (!isPremium) return false
+  const t = (subscriptionTier ?? '').toLowerCase()
+  return t === 'pro' || t === 'complimentary' || t === 'premium'
+}
+
 export const PURCHASE_URL = '/api/stripe/create-checkout-session?tier=solo-monthly'
