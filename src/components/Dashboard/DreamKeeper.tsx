@@ -240,12 +240,17 @@ export function DreamKeeper() {
           >
             <ArrowLeft size={20} />
           </button>
-          <input
-            type="text"
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            className="text-xl sm:text-2xl font-bold bg-transparent border-none focus:outline-none text-gray-900 min-w-0 w-48 sm:w-72"
-          />
+          <div className="min-w-0">
+            <input
+              type="text"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              className="text-xl sm:text-2xl font-bold bg-transparent border-none focus:outline-none text-gray-900 min-w-0 w-48 sm:w-72 block"
+            />
+            <p className="text-xs text-green-600/80 hidden sm:block mt-0.5">
+              Create your own collage of your dream! Think vision board, meets photo gallery.
+            </p>
+          </div>
           {savedAt && (
             <span className="text-xs text-green-600/70 flex items-center gap-1 flex-none">
               <Save size={11} />
