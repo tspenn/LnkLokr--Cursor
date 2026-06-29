@@ -224,6 +224,68 @@ export function DreamKeeper() {
     }
   }
 
+  const addImageItem = (content: string) => {
+    const newItem: BoardItem = {
+      id: generateId(),
+      type: 'image',
+      content,
+      x: 60 + Math.random() * 300,
+      y: 60 + Math.random() * 200,
+      width: 280,
+      height: 210,
+      rotation: (Math.random() - 0.5) * 6,
+      zIndex: items.length + 1,
+    }
+    setItems(prev => [...prev, newItem])
+    setSelectedId(newItem.id)
+  }
+
+  // Global paste handler — image data or image URL
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      // Don't steal paste when user is editing a text item or the title input
+      const target = e.target as HTMLElement
+      if (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT') return
+
+      const items = e.clipboardData?.items
+      if (!items) return
+
+      // 1. Image data (screenshot, browser "Copy Image")
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile()
+          if (!file) continue
+          const reader = new FileReader()
+          reader.onload = ev => {
+            const dataUrl = ev.target?.result as string
+            if (dataUrl) addImageItem(dataUrl)
+          }
+          reader.readAsDataURL(file)
+          e.preventDefault()
+          return
+        }
+      }
+
+      // 2. Plain text — treat as URL if it looks like one
+      for (const item of Array.from(items)) {
+        if (item.type === 'text/plain') {
+          item.getAsString(text => {
+            const trimmed = text.trim()
+            if (/^https?:\/\/.+/i.test(trimmed)) {
+              addImageItem(trimmed)
+            }
+          })
+          e.preventDefault()
+          return
+        }
+      }
+    }
+
+    window.addEventListener('paste', handlePaste)
+    return () => window.removeEventListener('paste', handlePaste)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items])
+
   return (
     <div
       className="flex flex-col h-screen bg-green-50 select-none"
