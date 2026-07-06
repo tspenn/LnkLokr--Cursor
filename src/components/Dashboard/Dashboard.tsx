@@ -160,6 +160,23 @@ export function Dashboard() {
         }
       }
 
+      // Try text/html — may contain an <img src="…"> when user copies an image from a page
+      for (const item of Array.from(items)) {
+        if (item.type === 'text/html') {
+          item.getAsString((html) => {
+            const match = html.match(/<img[^>]+src=["']([^"']+)["']/i)
+            if (match?.[1]) {
+              const src = match[1]
+              setPastedUrl(src)
+              setPastedFile(undefined)
+              setAddModalMode('image')
+              setShowAddModal(true)
+            }
+          })
+          // Don't return — fall through to text/plain in case html parse fails
+        }
+      }
+
       // Text (URL or plain text)
       for (const item of Array.from(items)) {
         if (item.type === 'text/plain') {
@@ -196,6 +213,18 @@ export function Dashboard() {
           setAddModalMode('image')
           setShowAddModal(true)
           return
+        }
+        if (item.types.includes('text/html')) {
+          const blob = await item.getType('text/html')
+          const html = await blob.text()
+          const match = html.match(/<img[^>]+src=["']([^"']+)["']/i)
+          if (match?.[1]) {
+            setPastedUrl(match[1])
+            setPastedFile(undefined)
+            setAddModalMode('image')
+            setShowAddModal(true)
+            return
+          }
         }
         if (item.types.includes('text/plain')) {
           const blob = await item.getType('text/plain')

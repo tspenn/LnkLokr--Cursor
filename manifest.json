@@ -8,7 +8,8 @@
     "activeTab",
     "storage",
     "tabs",
-    "notifications"
+    "notifications",
+    "clipboardRead"
   ],
   "host_permissions": [
     "https://*.supabase.co/*",
