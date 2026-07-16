@@ -26,7 +26,10 @@
     { "source": "/reset-password", "destination": "/index.html" },
     { "source": "/dashboard", "destination": "/index.html" },
     { "source": "/dreamkeeper/:path*", "destination": "/index.html" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    {
+      "source": "/((?!api/|.*\\.(?:png|jpg|jpeg|gif|webp|svg|ico|css|js|map|webmanifest|json|txt|xml|woff2?)$).*)",
+      "destination": "/index.html"
+    }
   ],
 
   "headers": [
@@ -34,6 +37,13 @@
       "source": "/api/stripe/webhook",
       "headers": [
         { "key": "Cache-Control", "value": "no-store, max-age=0" }
+      ]
+    },
+    {
+      "source": "/og-image.png",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400" },
+        { "key": "Content-Type", "value": "image/png" }
       ]
     },
     {
