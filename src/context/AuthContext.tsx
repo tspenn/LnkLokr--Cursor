@@ -269,7 +269,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setAuthState(prev => ({ ...prev, error: null }))
 
-      const { data: { user, session }, error: signUpError } = await supabase.auth.signUp({
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -279,7 +279,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (signUpError) throw signUpError
 
-      if (session && user) {
+      const { user, session } = data
+
+      if (data?.user?.identities?.length === 0) {
+        // Email is already registered in Supabase — no email was sent
+        try {
+          localStorage.removeItem('is_new')
+        } catch {
+          // ignore storage errors
+        }
+        setAuthState(prev => ({ ...prev, error: '__existing__', confirmationPending: false }))
+        throw new Error('__existing__')
+      } else if (session && user) {
         // Email confirmation is disabled — session is live, create the profile now.
         const { error: insertError } = await supabase.from('users').insert({
           id: user.id,
@@ -298,6 +309,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAuthState(prev => ({ ...prev, confirmationPending: true }))
       }
     } catch (error) {
+      if (error instanceof Error && error.message === '__existing__') {
+        throw error
+      }
+
       let message = 'Sign up failed'
 
       if (error instanceof Error) {

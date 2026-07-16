@@ -77,7 +77,8 @@ export function AuthModal({ initialMode = 'signin', onClose }: AuthModalProps) {
     }
   }
 
-  const displayError = isDuplicateEmail ? null : (localError || error)
+  const displayError =
+    isDuplicateEmail || error === '__existing__' ? null : (localError || error)
 
   return (
     <div
@@ -137,6 +138,25 @@ export function AuthModal({ initialMode = 'signin', onClose }: AuthModalProps) {
         {resetSent && (
           <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-800 text-sm">
             Check your email for a reset link. Use the <strong>latest</strong> one only.
+          </div>
+        )}
+
+        {/* Existing email (shared Supabase project — fake signup success) */}
+        {error === '__existing__' && (
+          <div className="mb-4 flex flex-col gap-2 p-3 bg-amber-50 border border-amber-300 rounded-lg text-amber-900 text-sm">
+            <div className="flex gap-2 items-start">
+              <Icon name="info" size={16} className="flex-shrink-0 mt-0.5 text-amber-600" />
+              <span>
+                That email already has an account.{' '}
+                <button
+                  type="button"
+                  onClick={() => switchMode('signin')}
+                  className="font-medium underline text-amber-800 hover:text-amber-950"
+                >
+                  Log in instead →
+                </button>
+              </span>
+            </div>
           </div>
         )}
 

@@ -52,7 +52,8 @@ export function SignUp({ onLoginClick }: SignUpProps) {
     }
   }
 
-  const displayError = isDuplicateEmail ? null : (validationError || error)
+  const displayError =
+    isDuplicateEmail || error === '__existing__' ? null : (validationError || error)
 
   if (confirmationPending) {
     return (
@@ -103,6 +104,24 @@ export function SignUp({ onLoginClick }: SignUpProps) {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {error === '__existing__' && (
+              <div className="flex flex-col gap-2 p-3 bg-amber-50 border border-amber-300 rounded-lg text-amber-900 text-sm">
+                <div className="flex gap-2 items-start">
+                  <Icon name="info" size={16} className="flex-shrink-0 mt-0.5 text-amber-600" />
+                  <span>
+                    That email already has an account.{' '}
+                    <button
+                      type="button"
+                      onClick={onLoginClick}
+                      className="font-medium underline text-amber-800 hover:text-amber-950"
+                    >
+                      Log in instead →
+                    </button>
+                  </span>
+                </div>
+              </div>
+            )}
+
             {isDuplicateEmail && (
               <div className="flex flex-col gap-2 p-3 bg-teal-50 border border-teal-300 rounded-lg text-teal-900 text-sm">
                 <div className="flex gap-2 items-start">
