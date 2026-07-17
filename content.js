@@ -42,6 +42,29 @@
         sendResponse({ alt })
         return true
       }
+
+      if (message.type === 'READ_CLIPBOARD_IMAGE') {
+        ;(async () => {
+          try {
+            const items = await navigator.clipboard.read()
+            for (const item of items) {
+              const imageType = item.types.find(t => t.startsWith('image/'))
+              if (imageType) {
+                const blob = await item.getType(imageType)
+                const reader = new FileReader()
+                reader.onload = () => sendResponse({ dataUrl: reader.result })
+                reader.onerror = () => sendResponse({ dataUrl: null })
+                reader.readAsDataURL(blob)
+                return
+              }
+            }
+            sendResponse({ dataUrl: null })
+          } catch {
+            sendResponse({ dataUrl: null })
+          }
+        })()
+        return true
+      }
     })
   } catch (error) {
     console.warn('LnkLokr content script:', error)

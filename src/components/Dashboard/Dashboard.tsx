@@ -160,6 +160,23 @@ export function Dashboard() {
         }
       }
 
+      // Try text/html — may contain an <img src="…"> when user copies an image from a page
+      for (const item of Array.from(items)) {
+        if (item.type === 'text/html') {
+          item.getAsString((html) => {
+            const match = html.match(/<img[^>]+src=["']([^"']+)["']/i)
+            if (match?.[1]) {
+              const src = match[1]
+              setPastedUrl(src)
+              setPastedFile(undefined)
+              setAddModalMode('image')
+              setShowAddModal(true)
+            }
+          })
+          // Don't return — fall through to text/plain in case html parse fails
+        }
+      }
+
       // Text (URL or plain text)
       for (const item of Array.from(items)) {
         if (item.type === 'text/plain') {
@@ -196,6 +213,18 @@ export function Dashboard() {
           setAddModalMode('image')
           setShowAddModal(true)
           return
+        }
+        if (item.types.includes('text/html')) {
+          const blob = await item.getType('text/html')
+          const html = await blob.text()
+          const match = html.match(/<img[^>]+src=["']([^"']+)["']/i)
+          if (match?.[1]) {
+            setPastedUrl(match[1])
+            setPastedFile(undefined)
+            setAddModalMode('image')
+            setShowAddModal(true)
+            return
+          }
         }
         if (item.types.includes('text/plain')) {
           const blob = await item.getType('text/plain')
@@ -317,21 +346,27 @@ export function Dashboard() {
 
   const handleCreateFolder = async () => {
     if (!user || !newFolderName.trim()) return
+    const name = newFolderName.trim()
     setCreatingFolder(true)
     try {
       await addFolder(user.is_premium ?? false, user.id, {
-        name: newFolderName.trim(),
+        name,
         position: folders.length,
       })
       setNewFolderName('')
       setShowNewFolder(false)
       await loadData()
-      toast.success(`Folder "${newFolderName.trim()}" created`)
+      toast.success(`Folder "${name}" created`)
     } catch {
       toast.error('Failed to create folder')
     } finally {
       setCreatingFolder(false)
     }
+  }
+
+  const openFolder = (folderId: string | null) => {
+    setSelectedFolderId(folderId)
+    setActiveTab('links')
   }
 
   if (isLoading) {
@@ -496,6 +531,65 @@ export function Dashboard() {
             </div>
 
             <div className="border-t border-gray-200 pt-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-500 font-medium">Folders</p>
+                {!showNewFolder && (
+                  <button
+                    onClick={() => setShowNewFolder(true)}
+                    className="flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700 font-medium"
+                  >
+                    <Icon name="plus" size={15} /> New folder
+                  </button>
+                )}
+              </div>
+
+              {showNewFolder && (
+                <form
+                  onSubmit={e => { e.preventDefault(); handleCreateFolder() }}
+                  className="flex gap-2"
+                >
+                  <input
+                    autoFocus
+                    type="text"
+                    value={newFolderName}
+                    onChange={e => setNewFolderName(e.target.value)}
+                    placeholder="Folder name"
+                    className="flex-1 px-3 py-2 border-2 border-black rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                  <button
+                    type="submit"
+                    disabled={creatingFolder || !newFolderName.trim()}
+                    className="px-4 py-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition border-2 border-black"
+                  >
+                    {creatingFolder ? '…' : 'Create'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowNewFolder(false); setNewFolderName('') }}
+                    className="px-3 py-2 text-gray-500 hover:text-gray-700 rounded-lg text-sm"
+                  >
+                    Cancel
+                  </button>
+                </form>
+              )}
+
+              {folders.length > 0 ? (
+                <FolderGrid
+                  folders={folders}
+                  selectedFolderId={null}
+                  onSelectFolder={openFolder}
+                />
+              ) : !showNewFolder && (
+                <button
+                  onClick={() => setShowNewFolder(true)}
+                  className="w-full py-4 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:text-primary-600 hover:border-primary-300 transition"
+                >
+                  Create your first folder to organize saves
+                </button>
+              )}
+            </div>
+
+            <div className="border-t border-gray-200 pt-4 space-y-3">
               <p className="text-sm text-gray-500 text-center font-medium">Browse your collection</p>
               <button
                 onClick={() => setActiveTab('links')}
@@ -592,7 +686,7 @@ export function Dashboard() {
                           <FolderGrid
                             folders={folders}
                             selectedFolderId={selectedFolderId}
-                            onSelectFolder={setSelectedFolderId}
+                            onSelectFolder={openFolder}
                           />
                         </div>
                       )}
@@ -709,7 +803,7 @@ export function Dashboard() {
                         </div>
                       </div>
                     )}
-                    <SavedGallery contentType="file" onAdd={() => openAddModal('file')} />
+                    <SavedGallery contentType="file" status="keep" onAdd={() => openAddModal('file')} />
                   </>
                 ) : activeTab === 'pdfs' ? (
                   <>
@@ -723,7 +817,7 @@ export function Dashboard() {
                         </div>
                       </div>
                     )}
-                    <SavedGallery contentType="pdf" onAdd={() => openAddModal('file')} />
+                    <SavedGallery contentType="pdf" status="keep" onAdd={() => openAddModal('file')} />
                   </>
                 ) : activeTab === 'bury' ? (
                   <BuryView
@@ -731,7 +825,7 @@ export function Dashboard() {
                     onEdit={(link) => setEditingLink(link)}
                   />
                 ) : (
-                  <SavedGallery contentType="image" />
+                  <SavedGallery contentType="image" status="keep" />
                 )}
               </div>
             </div>
@@ -748,6 +842,12 @@ export function Dashboard() {
           initialUrl={pastedUrl}
           initialFile={pastedFile}
           currentStatus={
+            activeTab === 'borrow' ? 'borrow'
+            : activeTab === 'share' ? 'share'
+            : activeTab === 'bury' ? 'bury'
+            : 'keep'
+          }
+          folderScope={
             activeTab === 'borrow' ? 'borrow'
             : activeTab === 'share' ? 'share'
             : activeTab === 'bury' ? 'bury'

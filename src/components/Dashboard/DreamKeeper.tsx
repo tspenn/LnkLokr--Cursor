@@ -1,6 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Download, ArrowLeft, Type, Image as ImageIcon, Trash2, Save } from 'lucide-react'
+import { useAuth } from '@/context/AuthContext'
+import { isProTier } from '@/lib/premiumService'
 
 interface BoardItem {
   id: string
@@ -27,6 +29,7 @@ interface SavedBoard {
   title: string
   items: BoardItem[]
   updatedAt: string
+  folder?: string
 }
 
 function listBoards(): SavedBoard[] {
@@ -56,6 +59,7 @@ function generateId() {
 export function DreamKeeper() {
   const { id: boardId } = useParams()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const canvasRef = useRef<HTMLDivElement>(null)
   const [title, setTitle] = useState('My Dream Keeper')
   const [items, setItems] = useState<BoardItem[]>([])
@@ -68,6 +72,12 @@ export function DreamKeeper() {
   const [showBoardList, setShowBoardList] = useState(false)
   const autoSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const [currentFolder, setCurrentFolder] = useState<string>('')
+  const [folderFilter, setFolderFilter] = useState<string | null>(null)
+  const [editingFolderForBoard, setEditingFolderForBoard] = useState<string | null>(null)
+  const [folderInputValue, setFolderInputValue] = useState('')
+
+  const isPro = isProTier(user?.is_premium ?? false, user?.subscription_tier)
 
   // On mount: if no boardId, create a new one and redirect
   useEffect(() => {
@@ -80,6 +90,7 @@ export function DreamKeeper() {
       setTitle(saved.title)
       setItems(saved.items)
       setSavedAt(saved.updatedAt)
+      setCurrentFolder(saved.folder ?? '')
     }
     setAllBoards(listBoards())
   }, [boardId, navigate])
@@ -89,11 +100,11 @@ export function DreamKeeper() {
     if (!boardId) return
     if (autoSaveRef.current) clearTimeout(autoSaveRef.current)
     autoSaveRef.current = setTimeout(() => {
-      saveBoard({ id: boardId, title, items, updatedAt: new Date().toISOString() })
+      saveBoard({ id: boardId, title, items, updatedAt: new Date().toISOString(), folder: currentFolder || undefined })
       setSavedAt(new Date().toISOString())
       setAllBoards(listBoards())
     }, 1000)
-  }, [boardId, title, items])
+  }, [boardId, title, items, currentFolder])
 
   useEffect(() => {
     if (!boardId) return
@@ -225,6 +236,23 @@ export function DreamKeeper() {
     }
   }
 
+  const setBoardFolder = (id: string, folder: string) => {
+    const boards = listBoards().map(b =>
+      b.id === id ? { ...b, folder: folder || undefined } : b
+    )
+    localStorage.setItem('dreamkeeper_boards', JSON.stringify(boards))
+    setAllBoards(boards)
+    if (id === boardId) setCurrentFolder(folder)
+  }
+
+  const allFolderNames = Array.from(
+    new Set(allBoards.map(b => b.folder).filter((f): f is string => !!f))
+  ).sort()
+
+  const visibleBoards = folderFilter
+    ? allBoards.filter(b => b.folder === folderFilter)
+    : allBoards
+
   const addImageItem = (content: string) => {
     const newItem: BoardItem = {
       id: generateId(),
@@ -350,10 +378,15 @@ export function DreamKeeper() {
               Create your own collage of your dream! Think vision board, meets photo gallery.
             </p>
           </div>
-          {savedAt && (
+            {savedAt && (
             <span className="text-xs text-green-600/70 flex items-center gap-1 flex-none">
               <Save size={11} />
               {new Date(savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
+          {isPro && (
+            <span className="text-xs text-green-600/60 hidden sm:inline">
+              {currentFolder ? `📁 ${currentFolder}` : ''}
             </span>
           )}
         </div>
@@ -368,18 +401,64 @@ export function DreamKeeper() {
               Boards ({allBoards.length || 1})
             </button>
             {showBoardList && (
-              <div className="absolute top-full right-0 mt-1 bg-white border-4 border-black shadow-lg z-50 min-w-56">
+              <div className="absolute top-full right-0 mt-1 bg-white border-4 border-black shadow-lg z-50 min-w-64 max-h-96 overflow-y-auto">
                 <button
                   onClick={newBoard}
                   className="w-full px-4 py-2 text-left hover:bg-green-50 text-sm font-bold border-b-2 border-gray-100"
                 >+ New Board</button>
-                {allBoards.map(b => (
-                  <div key={b.id} className={`flex items-center gap-2 px-4 py-2 hover:bg-green-50 ${b.id === boardId ? 'bg-green-100 font-bold' : ''}`}>
-                    <button className="flex-1 text-left text-sm truncate" onClick={() => openBoard(b.id)}>
-                      {b.title}
-                    </button>
-                    {b.id !== boardId && (
-                      <button onClick={() => deleteBoard(b.id)} className="text-red-400 hover:text-red-600 text-xs flex-none">✕</button>
+
+                {isPro && allFolderNames.length > 0 && (
+                  <div className="px-3 py-2 border-b border-gray-100 flex gap-1 flex-wrap">
+                    <button
+                      onClick={() => setFolderFilter(null)}
+                      className={`px-2 py-0.5 text-xs rounded-full border transition ${!folderFilter ? 'bg-green-600 text-white border-green-600' : 'border-gray-300 hover:bg-green-50'}`}
+                    >All</button>
+                    {allFolderNames.map(f => (
+                      <button
+                        key={f}
+                        onClick={() => setFolderFilter(f === folderFilter ? null : f)}
+                        className={`px-2 py-0.5 text-xs rounded-full border transition ${folderFilter === f ? 'bg-green-600 text-white border-green-600' : 'border-gray-300 hover:bg-green-50'}`}
+                      >{f}</button>
+                    ))}
+                  </div>
+                )}
+
+                {visibleBoards.map(b => (
+                  <div key={b.id} className={`px-4 py-2 hover:bg-green-50 ${b.id === boardId ? 'bg-green-100' : ''}`}>
+                    <div className="flex items-center gap-2">
+                      <button className="flex-1 text-left text-sm font-medium truncate" onClick={() => openBoard(b.id)}>
+                        {b.title}
+                      </button>
+                      {b.id !== boardId && (
+                        <button onClick={() => deleteBoard(b.id)} className="text-red-400 hover:text-red-600 text-xs flex-none">✕</button>
+                      )}
+                    </div>
+                    {isPro && (
+                      editingFolderForBoard === b.id ? (
+                        <div className="flex gap-1 mt-1">
+                          <input
+                            autoFocus
+                            type="text"
+                            value={folderInputValue}
+                            onChange={e => setFolderInputValue(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') { setBoardFolder(b.id, folderInputValue); setEditingFolderForBoard(null) }
+                              if (e.key === 'Escape') setEditingFolderForBoard(null)
+                            }}
+                            placeholder="Folder name"
+                            className="flex-1 px-2 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-green-400"
+                          />
+                          <button
+                            onClick={() => { setBoardFolder(b.id, folderInputValue); setEditingFolderForBoard(null) }}
+                            className="px-2 py-0.5 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                          >Save</button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => { setEditingFolderForBoard(b.id); setFolderInputValue(b.folder ?? '') }}
+                          className="text-xs text-gray-400 hover:text-green-600 mt-0.5 block"
+                        >{b.folder ? `📁 ${b.folder}` : '+ Add to folder'}</button>
+                      )
                     )}
                   </div>
                 ))}

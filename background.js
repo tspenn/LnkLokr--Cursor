@@ -190,22 +190,45 @@ const STATUSES = ['keep', 'borrow', 'share', 'bury']
 const STATUS_LABELS = { keep: '📦 Keep', borrow: '🔄 Borrow', share: '📤 Share', bury: '🔒 Bury' }
 
 chrome.runtime.onInstalled.addListener(() => {
-  // Parent items (shown on right-click)
-  chrome.contextMenus.create({ id: 'save-image', title: 'Save Image to LnkLokr…', contexts: ['image'] })
-  chrome.contextMenus.create({ id: 'save-link', title: 'Save Link to LnkLokr…', contexts: ['link'] })
-  chrome.contextMenus.create({ id: 'save-selection', title: 'Save Selection to LnkLokr…', contexts: ['selection'] })
+  chrome.contextMenus.removeAll(() => {
+    // ── Image right-click ────────────────────────────────────────────────────
+    chrome.contextMenus.create({ id: 'save-image', title: 'Save Image to LnkLokr', contexts: ['image'] })
 
-  // Sub-items — destination selector
-  for (const type of ['image', 'link', 'selection']) {
+    // ── Link right-click ─────────────────────────────────────────────────────
+    chrome.contextMenus.create({ id: 'save-link', title: 'Save Link to LnkLokr', contexts: ['link'] })
+
+    // ── Text selection right-click ───────────────────────────────────────────
+    chrome.contextMenus.create({ id: 'save-selection', title: 'Save Selection to LnkLokr', contexts: ['selection'] })
+
+    // ── Page background right-click — saves current tab URL ─────────────────
+    chrome.contextMenus.create({ id: 'save-page', title: 'Save This Page to LnkLokr', contexts: ['page'] })
+
+    // ── Paste clipboard image — appears on any right-click ───────────────────
+    chrome.contextMenus.create({ id: 'paste-clipboard', title: 'Paste Clipboard Image to LnkLokr', contexts: ['page', 'image', 'link', 'selection'] })
+
+    // Sub-items for each parent — bucket destination selector
+    for (const type of ['image', 'link', 'selection', 'page']) {
+      const ctx = type === 'image' ? 'image' : type === 'link' ? 'link' : type === 'selection' ? 'selection' : 'page'
+      for (const status of STATUSES) {
+        chrome.contextMenus.create({
+          id: `${type}-${status}`,
+          title: STATUS_LABELS[status],
+          parentId: `save-${type}`,
+          contexts: [ctx],
+        })
+      }
+    }
+
+    // Paste sub-items
     for (const status of STATUSES) {
       chrome.contextMenus.create({
-        id: `${type}-${status}`,
+        id: `paste-${status}`,
         title: STATUS_LABELS[status],
-        parentId: `save-${type}`,
-        contexts: [type === 'image' ? 'image' : type === 'link' ? 'link' : 'selection'],
+        parentId: 'paste-clipboard',
+        contexts: ['page', 'image', 'link', 'selection'],
       })
     }
-  }
+  })
 })
 
 // ─── Context menu click handler ───────────────────────────────────────────────
@@ -306,6 +329,59 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       notify(`Saved to ${status.charAt(0).toUpperCase() + status.slice(1)}!`, 'Saved to LnkLokr')
     } else {
       notify('Save Failed', result.error || 'Failed to save', 2)
+    }
+    return
+  }
+
+  // ── Save current page (page background right-click) ───────────────────────
+  if (menuId.startsWith('page-')) {
+    const status = menuId.replace('page-', '')
+    const url = tab.url || ''
+    const result = await saveWebpageLink({
+      url,
+      title: tab.title || url,
+      description: null,
+      tabTitle: tab.title,
+      status,
+    })
+    if (result.success) {
+      notify(`Page saved to ${status.charAt(0).toUpperCase() + status.slice(1)}!`, tab.title || url)
+    } else {
+      notify('Save Failed', result.error || 'Failed to save page', 2)
+    }
+    return
+  }
+
+  // ── Paste clipboard image ──────────────────────────────────────────────────
+  if (menuId.startsWith('paste-')) {
+    const status = menuId.replace('paste-', '')
+    if (!tab?.id) return
+    try {
+      // Ask the content script to read the clipboard and return image data
+      const response = await chrome.tabs.sendMessage(tab.id, { type: 'READ_CLIPBOARD_IMAGE' })
+      if (!response?.dataUrl) {
+        notify('Nothing to paste', 'No image found on clipboard', 2)
+        return
+      }
+      // Convert data URL to blob
+      const res = await fetch(response.dataUrl)
+      const blob = await res.blob()
+      const metadata = {
+        src: response.dataUrl,
+        pageTitle: tab.title || '',
+        pageUrl: tab.url || '',
+        alt: 'Pasted image',
+        title: 'Pasted Image',
+        status,
+      }
+      const result = await saveFileToLnklokr(blob, metadata)
+      if (result.success) {
+        notify(`Image saved to ${status.charAt(0).toUpperCase() + status.slice(1)}!`, 'Pasted from clipboard')
+      } else {
+        notify('Save Failed', result.error || 'Failed to save pasted image', 2)
+      }
+    } catch (err) {
+      notify('Paste Failed', 'Could not read clipboard. Try right-clicking inside the page.', 2)
     }
   }
 })

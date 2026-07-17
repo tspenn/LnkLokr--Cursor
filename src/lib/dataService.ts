@@ -74,11 +74,16 @@ export async function deleteLink(
 
 // ─── Folders ──────────────────────────────────────────────────────────────────
 
-export async function getFolders(_isPremium: boolean, userId: string): Promise<Folder[]> {
+export async function getFolders(
+  _isPremium: boolean,
+  userId: string,
+  scope: 'keep' | 'borrow' | 'share' | 'bury' = 'keep',
+): Promise<Folder[]> {
   const { data, error } = await supabase
     .from('folders')
     .select('*')
     .eq('user_id', userId)
+    .eq('scope', scope)
     .order('position')
   if (error) throw error
   return data ?? []
@@ -88,8 +93,27 @@ export async function addFolder(
   _isPremium: boolean,
   userId: string,
   folderData: Partial<Folder>,
+): Promise<Folder> {
+  const { data, error } = await supabase
+    .from('folders')
+    .insert({ ...folderData, user_id: userId })
+    .select()
+    .single()
+  if (error) throw error
+  return data as Folder
+}
+
+export async function updateFolder(
+  _isPremium: boolean,
+  userId: string,
+  id: string,
+  updates: Partial<Folder>,
 ): Promise<void> {
-  const { error } = await supabase.from('folders').insert({ ...folderData, user_id: userId })
+  const { error } = await supabase
+    .from('folders')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .eq('user_id', userId)
   if (error) throw error
 }
 

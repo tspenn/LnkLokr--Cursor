@@ -1,3 +1,26 @@
+/**
+ * stripe-webhook-lnklokr — Handles Stripe webhook events for LnkLokr.
+ *
+ * Free-tier safety notes:
+ *   • This webhook only fires when Stripe sends an event. Stripe only sends
+ *     events for users who have an active Stripe subscription. Free users
+ *     have no Stripe subscription, so they will never trigger this webhook.
+ *   • On cancellation / deletion, this function explicitly downgrades the user
+ *     to is_premium=false and subscription_tier='free'. This is the correct
+ *     upgrade-path reversal.
+ *   • The DB trigger `enforce_no_stripe_for_free` provides a belt-and-suspenders
+ *     guarantee: even if this function somehow tried to write stripe_customer_id
+ *     to a free-tier user_subscriptions row, the DB would reject it.
+ *
+ * Upgrade path (Free → Paid):
+ *   1. Free user opens checkout → create-checkout-session creates a Stripe session.
+ *   2. User pays → Stripe fires checkout.session.completed.
+ *   3. This function receives the event and calls activateUser(), which sets
+ *      is_premium=true, subscription_tier='solo'|'pro', and upserts
+ *      user_subscriptions with the new plan_name and stripe_customer_id.
+ *   4. The DB trigger allows this because the new tier_id is paid (price > 0).
+ */
+
 import Stripe from 'npm:stripe@14'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
