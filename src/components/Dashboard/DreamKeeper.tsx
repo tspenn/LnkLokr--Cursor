@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Download, ArrowLeft, Type, Image as ImageIcon, Trash2, Save } from 'lucide-react'
+import { Download, Type, Image as ImageIcon, Trash2, Save } from 'lucide-react'
+import { Header } from '../shared/Header'
 
 interface BoardItem {
   id: string
@@ -329,16 +330,11 @@ export function DreamKeeper() {
       onMouseMove={onMouseMove}
       onMouseUp={onMouseUp}
     >
-      {/* Header */}
-      <header className="flex-none bg-white border-b-2 border-green-200 px-4 sm:px-6 py-3 flex items-center justify-between gap-3 flex-wrap shadow-sm">
+      <Header tall onBack={() => navigate('/')} />
+
+      {/* Board title + tools */}
+      <div className="flex-none bg-white border-b-2 border-green-200 px-4 sm:px-6 py-3 flex items-center justify-between gap-3 flex-wrap shadow-sm">
         <div className="flex items-center gap-3 min-w-0">
-          <button
-            onClick={() => navigate('/')}
-            className="p-2 rounded-full hover:bg-green-100 border-2 border-black transition flex-none"
-            title="Back to Dashboard"
-          >
-            <ArrowLeft size={20} />
-          </button>
           <div className="min-w-0">
             <input
               type="text"
@@ -359,7 +355,6 @@ export function DreamKeeper() {
         </div>
 
         <div className="flex gap-2 flex-wrap items-center">
-          {/* Board switcher */}
           <div className="relative">
             <button
               onClick={() => setShowBoardList(v => !v)}
@@ -407,7 +402,7 @@ export function DreamKeeper() {
             {isExporting ? 'Exporting…' : 'Export PNG'}
           </button>
         </div>
-      </header>
+      </div>
 
       {/* Canvas — fills all remaining vertical space; scrollable on mobile */}
       <div

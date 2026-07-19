@@ -10,6 +10,8 @@ interface HeaderProps {
   onSignOut?: () => void
   onUpgrade?: () => void
   onBack?: () => void
+  /** 25% taller brand banner (e.g. Dream Keeper) */
+  tall?: boolean
 }
 
 export function Header({
@@ -19,16 +21,27 @@ export function Header({
   onSignOut,
   onUpgrade,
   onBack,
+  tall = false,
 }: HeaderProps) {
-  const showToolbar = Boolean(email)
+  const showToolbar = Boolean(email || onBack || onSettings || onSignOut || onUpgrade)
 
   return (
     <header className="border-b-4 border-black shadow-md shrink-0">
-      <div className="w-full min-h-[120px] sm:min-h-[160px] flex items-center justify-center bg-gradient-to-r from-pink-200 via-purple-200 to-orange-200 px-4 py-4 sm:py-6">
+      <div
+        className={`w-full flex items-center justify-center bg-gradient-to-r from-pink-200 via-purple-200 to-orange-200 px-4 ${
+          tall
+            ? 'min-h-[150px] sm:min-h-[200px] py-5 sm:py-7'
+            : 'min-h-[120px] sm:min-h-[160px] py-4 sm:py-6'
+        }`}
+      >
         <img
           src={HEADER_BANNER_SRC}
-          alt="Lnk Lokr"
-          className="h-24 sm:h-32 md:h-36 w-auto max-w-[min(100%,720px)] object-contain"
+          alt="LnkLokr"
+          className={`w-auto max-w-[min(100%,720px)] object-contain ${
+            tall
+              ? 'h-[7.5rem] sm:h-40 md:h-[11.25rem]'
+              : 'h-24 sm:h-32 md:h-36'
+          }`}
         />
       </div>
 
@@ -48,9 +61,11 @@ export function Header({
                   Menu
                 </button>
               )}
-              <p className="text-sm sm:text-base font-medium text-gray-800 truncate max-w-[min(100%,200px)]">
-                {email}
-              </p>
+              {email && (
+                <p className="text-sm sm:text-base font-medium text-gray-800 truncate max-w-[min(100%,200px)]">
+                  {email}
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-2 sm:gap-3">
               {isPremium ? (
