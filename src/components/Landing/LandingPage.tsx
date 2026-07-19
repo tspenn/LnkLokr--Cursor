@@ -80,7 +80,7 @@ export function LandingPage() {
             on your phone.
           </h1>
           <p className="text-sm text-gray-500 mb-8">
-            Keep · Borrow · Share · Bury — the full workflow, free forever.
+            Keep · Borrow · Share · Bury · Dream Keeper — the full workflow, free forever.
           </p>
 
           <div className="flex flex-col gap-3">
@@ -111,6 +111,7 @@ export function LandingPage() {
               { bg: 'bg-purple-100', border: 'border-purple-300', icon: '/icons/basket.png', img: true, label: 'Borrow', desc: 'Not sure yet? Park it here' },
               { bg: 'bg-pink-100', border: 'border-pink-300', icon: null, emoji: '📤', label: 'Share', desc: 'Stage and send to anyone' },
               { bg: 'bg-cyan-100', border: 'border-cyan-300', icon: '/icons/combination_lock.png', img: true, label: 'Bury', desc: 'Private vault, password-protected' },
+              { bg: 'bg-amber-100', border: 'border-amber-300', icon: null, emoji: '📋', label: 'Dream Keeper', desc: 'Build a vision-board collage of your dream' },
             ].map(({ bg, border, icon, img, emoji, label, desc }) => (
               <div key={label} className={`${bg} border-2 ${border} rounded-xl px-4 py-3.5 flex items-center gap-4`}>
                 {img && icon
@@ -136,6 +137,7 @@ export function LandingPage() {
               { emoji: '🖼️', label: 'Links + images', body: 'Other apps save the URL. LnkLokr saves the image too — so you remember what it was.' },
               { emoji: '📱', label: 'Built for mobile', body: 'Installs as a PWA on iPhone, iPad, or Android. No app store needed.' },
               { emoji: '🔒', label: 'Truly private', body: 'Bury items behind a password. Your data is never sold.' },
+              { emoji: '📋', label: 'Dream Keeper', body: 'Collage images and notes into a vision board — arrange, edit, and export your dream.' },
               { emoji: '🧩', label: 'Chrome extension', body: 'Pro tier adds one-click saving from any webpage on your desktop.' },
             ].map(({ emoji, label, body }) => (
               <div key={label} className="flex gap-3 items-start p-3 bg-white/80 rounded-xl border border-gray-200">
