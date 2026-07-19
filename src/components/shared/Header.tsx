@@ -10,7 +10,7 @@ interface HeaderProps {
   onSignOut?: () => void
   onUpgrade?: () => void
   onBack?: () => void
-  /** 25% taller brand banner (e.g. Dream Keeper) */
+  /** Compact 75px brand banner (e.g. Dream Keeper) */
   tall?: boolean
 }
 
@@ -30,7 +30,7 @@ export function Header({
       <div
         className={`w-full flex items-center justify-center bg-gradient-to-r from-pink-200 via-purple-200 to-orange-200 px-4 ${
           tall
-            ? 'min-h-[150px] sm:min-h-[200px] py-5 sm:py-7'
+            ? 'h-[75px] min-h-[75px] py-1'
             : 'min-h-[120px] sm:min-h-[160px] py-4 sm:py-6'
         }`}
       >
@@ -39,7 +39,7 @@ export function Header({
           alt="LnkLokr"
           className={`w-auto max-w-[min(100%,720px)] object-contain ${
             tall
-              ? 'h-[7.5rem] sm:h-40 md:h-[11.25rem]'
+              ? 'h-[60px]'
               : 'h-24 sm:h-32 md:h-36'
           }`}
         />
