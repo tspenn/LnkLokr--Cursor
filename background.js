@@ -224,18 +224,12 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       const response = await fetch(imageSrc)
       const blob = await response.blob()
 
-      let alt = ''
-      try {
-        const altResult = await chrome.tabs.sendMessage(tab.id, { type: 'GET_IMAGE_METADATA', imageSrc }, { frameId: 0 })
-        if (altResult?.alt) alt = altResult.alt
-      } catch { /* content script may not be injected */ }
-
       const metadata = {
         src: imageSrc,
         pageTitle: tab.title || '',
         pageUrl: tab.url || '',
-        alt,
-        title: alt || 'Saved Image',
+        alt: '',
+        title: 'Saved Image',
         status,
       }
 

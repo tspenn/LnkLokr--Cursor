@@ -469,7 +469,7 @@ export function SettingsPanel({ onClose, onExportClick }: SettingsPanelProps) {
           <div>
             <h3 className="text-sm font-semibold text-gray-900 mb-3">About</h3>
             <div className="space-y-2 text-sm text-gray-600">
-              <p>LnkLokr v1.5.1</p>
+              <p>LnkLokr v1.5.2</p>
               <p>Save links with images. Keep · Borrow · Share · Bury.</p>
               <p className="text-xs text-gray-400 mt-1">Cancel at any time · Your data is yours · Never sold</p>
             </div>

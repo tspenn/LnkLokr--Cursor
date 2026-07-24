@@ -81,7 +81,7 @@ export default defineConfig({
         if (process.env.BUILD_TARGET !== 'extension') return
 
         const dist = path.resolve(__dirname, 'dist-extension')
-        copyFileSync(path.resolve(__dirname, 'content.js'), path.join(dist, 'content.js'))
+        // No always-on content script — keeps Chrome Web Store review narrower.
         copyFileSync(path.resolve(__dirname, 'manifest.json'), path.join(dist, 'manifest.json'))
 
         // Remove PWA artifacts from web builds — Chrome needs manifest.json only.
