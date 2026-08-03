@@ -138,7 +138,7 @@ export function LandingPage() {
               { emoji: '📱', label: 'Built for mobile', body: 'Installs as a PWA on iPhone, iPad, or Android. No app store needed.' },
               { emoji: '🔒', label: 'Truly private', body: 'Bury items behind a password. Your data is never sold.' },
               { emoji: '📋', label: 'Dream Keeper', body: 'Collage images and notes into a vision board — arrange, edit, and export your dream.' },
-              { emoji: '🧩', label: 'Chrome extension', body: 'Pro tier adds one-click saving from any webpage on your desktop.' },
+              { emoji: '🧩', label: 'Chrome extension', body: 'Pro includes LnkLokr Saver — right-click to save links and images from any page.' },
             ].map(({ emoji, label, body }) => (
               <div key={label} className="flex gap-3 items-start p-3 bg-white/80 rounded-xl border border-gray-200">
                 <span className="text-2xl flex-shrink-0 mt-0.5">{emoji}</span>

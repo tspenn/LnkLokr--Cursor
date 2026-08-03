@@ -411,38 +411,38 @@ export function SettingsPanel({ onClose, onExportClick }: SettingsPanelProps) {
               Chrome Extension
             </h3>
             <div className="p-4 bg-blue-50 border-2 border-blue-200 rounded-lg space-y-3">
-              <p className="text-sm text-blue-900 font-medium">The scraper — saves from any website</p>
+              <p className="text-sm text-blue-900 font-medium">LnkLokr Saver — one-click save from any page</p>
               <p className="text-sm text-blue-800">
-                LnkLokr is a PWA and cannot access other websites on its own. The Chrome extension bridges that gap — it runs inside your browser and can capture any link, image, or page you're looking at.
+                The web app can’t reach other websites on its own. <strong>LnkLokr Saver</strong> bridges that gap — right-click any link, image, or selection and send it straight to your vault.
               </p>
               <div className="space-y-1.5 text-xs text-blue-700">
                 <p className="font-semibold text-blue-800">What it does:</p>
-                <p>• Right-click any link → <strong>Save to LnkLokr</strong> → goes to Keep</p>
-                <p>• Right-click any image → saves image + page info to your collection</p>
-                <p>• Right-click selected text → saves as a note</p>
-                <p>• All saves are organised by Keep / Borrow / Share / Bury automatically</p>
+                <p>• Right-click any link → save to Keep, Borrow, Share, or Bury</p>
+                <p>• Right-click any image → save the full image to your gallery</p>
+                <p>• Right-click selected text → save the page with your note</p>
+                <p>• Captures title, description, and preview when available</p>
               </div>
               <div className="space-y-1.5 text-xs text-blue-700">
                 <p className="font-semibold text-blue-800">How to set up:</p>
-                <p>① Install from the Chrome Web Store</p>
-                <p>② Click the LnkLokr icon → sign in with your email &amp; password</p>
-                <p>③ Right-click anything on any page to save it</p>
+                <p>① Install <strong>LnkLokr Saver</strong> from the Chrome Web Store</p>
+                <p>② Click the extension icon → sign in with your LnkLokr account</p>
+                <p>③ Right-click on any page → Save to LnkLokr</p>
               </div>
               {tierKey === 'pro' ? (
                 <a
-                  href="https://chrome.google.com/webstore/detail/lnklokr"
+                  href="https://chromewebstore.google.com/detail/lnklokr-saver/ngedolflfjapjbbfpkgifombmkaboakf"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition justify-center"
                 >
                   <Icon name="external-link" size={14} />
-                  Get the Extension
+                  Get LnkLokr Saver
                 </a>
               ) : (
                 <div className="p-3 bg-white border border-blue-200 rounded-lg">
                   <p className="text-xs text-blue-800 font-medium mb-1">Requires Pro plan</p>
                   <p className="text-xs text-blue-600">
-                    The Chrome extension is a Pro feature — it gives you the full scraping capability across every website you visit.{' '}
+                    LnkLokr Saver is included with Pro — right-click save from any website on your desktop.{' '}
                     <button onClick={onClose} className="underline font-medium">Upgrade to Pro →</button>
                   </p>
                 </div>
