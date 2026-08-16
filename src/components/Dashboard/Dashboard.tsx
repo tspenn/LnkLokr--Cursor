@@ -20,6 +20,7 @@ import { TickerTapeAd } from './TickerTapeAd'
 import { EditLinkModal } from './EditLinkModal'
 import { Header } from '../shared/Header'
 import { Icon } from '../shared/Icon'
+import { isExtensionPopup, openInBrowser } from '@/lib/authRedirect'
 
 
 type TabView = 'menu' | 'keep' | 'borrow' | 'share' | 'links' | 'files' | 'pdfs' | 'bury'
@@ -460,12 +461,22 @@ export function Dashboard() {
             </button>
 
             <button
-              onClick={() => navigate('/dreamkeeper')}
+              onClick={() => {
+                if (isExtensionPopup()) openInBrowser('/dreamkeeper')
+                else navigate('/dreamkeeper')
+              }}
               className="w-full bg-amber-100 border-4 border-black p-6 flex items-center gap-4 text-3xl font-bold text-gray-900 hover:bg-amber-200 transition shadow-lg hover:shadow-xl"
               style={{ fontStyle: 'italic' }}
             >
               <span className="text-4xl">📋</span>
-              Dream Keeper
+              <span className="flex flex-col items-start leading-tight">
+                Dream Keeper
+                {isExtensionPopup() && (
+                  <span className="text-sm font-medium not-italic text-gray-700">
+                    Opens in your browser
+                  </span>
+                )}
+              </span>
             </button>
 
 
