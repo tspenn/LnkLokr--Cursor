@@ -237,9 +237,21 @@ export function AddLinkModal({
     try {
       let thumbnail_url: string | null = null
       let icon: string | null = null
+      let listing_price: string | null = null
+      let listing_currency: string | null = null
+      let listing_colors: string | null = null
+      let listing_options: string | null = null
       try {
         const res = await fetch(`/api/scrape?url=${encodeURIComponent(formData.url)}`)
-        if (res.ok) { const m = await res.json(); thumbnail_url = m.thumbnail_url ?? null; icon = m.icon ?? null }
+        if (res.ok) {
+          const m = await res.json()
+          thumbnail_url = m.thumbnail_url ?? null
+          icon = m.icon ?? null
+          listing_price = m.listing_price ?? null
+          listing_currency = m.listing_currency ?? null
+          listing_colors = m.listing_colors ?? null
+          listing_options = m.listing_options ?? null
+        }
       } catch { /* non-fatal */ }
       await onAdd({
         ...formData,
@@ -247,6 +259,10 @@ export function AddLinkModal({
         folder_id: formData.folder_id || null,
         thumbnail_url,
         icon,
+        listing_price,
+        listing_currency,
+        listing_colors,
+        listing_options,
         content_type: 'url',
         is_favorite: false,
         status: currentStatus,

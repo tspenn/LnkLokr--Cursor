@@ -20,6 +20,7 @@ export function ExportPanel({ onClose }: ExportPanelProps) {
   const isPremium = user?.is_premium ?? false
   const [stats, setStats] = useState<Stats>({ total_links: 0, total_folders: 0, local_files: 0 })
   const [exporting, setExporting] = useState(false)
+  const [exportingCsv, setExportingCsv] = useState(false)
   const [exportingFiles, setExportingFiles] = useState(false)
   const [upgrading, setUpgrading] = useState<'solo-monthly' | 'solo-yearly' | null>(null)
 
@@ -80,6 +81,71 @@ export function ExportPanel({ onClose }: ExportPanelProps) {
       alert('Failed to export data')
     } finally {
       setExporting(false)
+    }
+  }
+
+  const csvEscape = (value: unknown): string => {
+    const text = value == null ? '' : Array.isArray(value) ? value.join('; ') : String(value)
+    if (/[",\n\r]/.test(text)) return `"${text.replace(/"/g, '""')}"`
+    return text
+  }
+
+  /** Export all link rows as CSV. Image files are omitted; image_url is included. */
+  const handleDownloadCsv = async () => {
+    if (!user) return
+    setExportingCsv(true)
+    try {
+      const [linksRes, foldersRes] = await Promise.all([
+        supabase.from('links').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
+        supabase.from('folders').select('id, name').eq('user_id', user.id),
+      ])
+      const folderName = new Map((foldersRes.data ?? []).map(f => [f.id, f.name]))
+      const headers = [
+        'title',
+        'url',
+        'image_url',
+        'description',
+        'folder',
+        'status',
+        'price',
+        'currency',
+        'colors',
+        'options',
+        'tags',
+        'notes',
+        'content_type',
+        'created_at',
+      ]
+      const rows = (linksRes.data ?? []).map(link => [
+        csvEscape(link.title),
+        csvEscape(link.url),
+        csvEscape(link.thumbnail_url),
+        csvEscape(link.description),
+        csvEscape(link.folder_id ? folderName.get(link.folder_id) ?? '' : ''),
+        csvEscape(link.status),
+        csvEscape(link.listing_price),
+        csvEscape(link.listing_currency),
+        csvEscape(link.listing_colors),
+        csvEscape(link.listing_options),
+        csvEscape(link.tags),
+        csvEscape(link.notes),
+        csvEscape(link.content_type),
+        csvEscape(link.created_at),
+      ].join(','))
+      const csv = [headers.join(','), ...rows].join('\r\n')
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `lnklokr-links-${new Date().toISOString().split('T')[0]}.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch {
+      alert('Failed to export CSV')
+    } finally {
+      setExportingCsv(false)
     }
   }
 
@@ -183,19 +249,31 @@ export function ExportPanel({ onClose }: ExportPanelProps) {
               </div>
               <div>
                 <h3 className="font-bold text-gray-900 dark:text-white">Export link data</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Links & folders as JSON</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">CSV for spreadsheets · JSON for backup</p>
               </div>
             </div>
             <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">
               Downloads all your saved links, folders, and metadata. Use this to back up or transfer your collection.
             </p>
-            <button
-              onClick={handleDownloadMetadata}
-              disabled={exporting}
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition shadow-md disabled:opacity-50"
-            >
-              {exporting ? 'Exporting…' : 'Download Backup (JSON)'}
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={handleDownloadCsv}
+                disabled={exportingCsv}
+                className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition shadow-md disabled:opacity-50"
+              >
+                {exportingCsv ? 'Exporting…' : 'Download CSV'}
+              </button>
+              <button
+                onClick={handleDownloadMetadata}
+                disabled={exporting}
+                className="bg-white hover:bg-green-50 text-green-800 border-2 border-green-600 font-bold py-3 rounded-lg transition disabled:opacity-50"
+              >
+                {exporting ? 'Exporting…' : 'JSON backup'}
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              CSV includes title, URL, image URL, price, colors, and options. Image files are not included.
+            </p>
           </div>
 
           {/* Export local files (OPFS) */}

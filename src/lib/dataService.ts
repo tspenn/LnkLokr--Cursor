@@ -54,6 +54,10 @@ const LINK_INSERT_KEYS = [
   'category_id',
   'content_type',
   'opfs_path',
+  'listing_price',
+  'listing_currency',
+  'listing_colors',
+  'listing_options',
 ] as const
 
 export async function addLink(

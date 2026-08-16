@@ -107,6 +107,10 @@ async function saveWebpageLink({ url, title, description, tabTitle, status = 'ke
       content_type: 'url',
       tags: [],
       is_favorite: false,
+      listing_price: meta?.listing_price || null,
+      listing_currency: meta?.listing_currency || null,
+      listing_colors: meta?.listing_colors || null,
+      listing_options: meta?.listing_options || null,
     })
 
     if (error) throw new Error(error.message)
