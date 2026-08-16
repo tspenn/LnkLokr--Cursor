@@ -74,7 +74,6 @@ interface AuthContextType extends AuthState {
   clearConfirmationPending: () => void
   signUp: (email: string, password: string) => Promise<void>
   signIn: (email: string, password: string) => Promise<void>
-  signInWithGoogle: () => Promise<void>
   signOut: () => Promise<void>
   resetPassword: (email: string) => Promise<void>
   updatePassword: (password: string) => Promise<void>
@@ -370,25 +369,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const signInWithGoogle = async () => {
-    try {
-      setAuthState(prev => ({ ...prev, error: null }))
-
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: getAuthRedirectUrl('/'),
-        },
-      })
-
-      if (error) throw error
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Google sign in failed'
-      setAuthState(prev => ({ ...prev, error: message }))
-      throw error
-    }
-  }
-
   const resetPassword = async (email: string) => {
     try {
       setAuthState(prev => ({ ...prev, error: null }))
@@ -481,7 +461,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         clearConfirmationPending,
         signUp,
         signIn,
-        signInWithGoogle,
         signOut,
         resetPassword,
         updatePassword,
