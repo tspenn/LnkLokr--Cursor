@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context/ToastContext'
 import { supabase } from '@/lib/supabase'
-import { getLinksByStatus, updateLink, deleteLink } from '@/lib/dataService'
-import { Link, BorrowCategory } from '@/types'
+import { getLinksByStatus, updateLink, deleteLink, getFolders } from '@/lib/dataService'
+import { Link, BorrowCategory, Folder } from '@/types'
 import { Icon } from '../shared/Icon'
 import { LinkCard } from './LinkCard'
+import { FolderBar } from './FolderBar'
+import { isProTier } from '@/lib/premiumService'
 
 type FilterType = 'all' | 'url' | 'image' | 'file'
 
@@ -24,6 +26,8 @@ export function BuryView({ onShowAdd, onEdit }: BuryViewProps) {
   const [isEditingCategory, setIsEditingCategory] = useState(false)
   const [categoryName, setCategoryName] = useState('')
   const [isLoading, setIsLoading] = useState(true)
+  const [folders, setFolders] = useState<Folder[]>([])
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
@@ -41,13 +45,17 @@ export function BuryView({ onShowAdd, onEdit }: BuryViewProps) {
 
   const loadData = async () => {
     if (!user) return
+    const isPremium = user.is_premium ?? false
+    const isPro = isProTier(isPremium, user.subscription_tier)
     try {
-      const [buriedLinks, categoriesRes] = await Promise.all([
-        getLinksByStatus(user.is_premium ?? false, user.id, 'bury'),
+      const [buriedLinks, categoriesRes, foldersData] = await Promise.all([
+        getLinksByStatus(isPremium, user.id, 'bury'),
         supabase.from('borrow_categories').select('*').eq('user_id', user.id).order('position'),
+        isPro ? getFolders(true, user.id, 'bury') : Promise.resolve([]),
       ])
       setItems(buriedLinks)
       setCategories(categoriesRes.data || [])
+      if (isPro) setFolders(foldersData as Folder[])
     } catch {
       toast.error('Failed to load Bury items')
     } finally {
@@ -57,11 +65,12 @@ export function BuryView({ onShowAdd, onEdit }: BuryViewProps) {
 
   const filteredItems = items.filter(item => {
     const matchesCategory = !selectedCategory || item.category_id === selectedCategory
-    if (filter === 'all') return matchesCategory
-    if (filter === 'url') return matchesCategory && (item.content_type === 'url' || !item.content_type)
-    if (filter === 'image') return matchesCategory && item.content_type === 'image'
-    if (filter === 'file') return matchesCategory && (item.content_type === 'file' || item.content_type === 'pdf')
-    return matchesCategory
+    const matchesFolder = !selectedFolderId || item.folder_id === selectedFolderId
+    if (filter === 'all') return matchesCategory && matchesFolder
+    if (filter === 'url') return matchesCategory && matchesFolder && (item.content_type === 'url' || !item.content_type)
+    if (filter === 'image') return matchesCategory && matchesFolder && item.content_type === 'image'
+    if (filter === 'file') return matchesCategory && matchesFolder && (item.content_type === 'file' || item.content_type === 'pdf')
+    return matchesCategory && matchesFolder
   })
 
   const handleCreateCategory = async () => {
@@ -79,6 +88,17 @@ export function BuryView({ onShowAdd, onEdit }: BuryViewProps) {
       loadData()
     } catch {
       toast.error('Failed to create category')
+    }
+  }
+
+  const handleAssignFolder = async (itemId: string, folderId: string | null) => {
+    if (!user) return
+    try {
+      await updateLink(user.is_premium ?? false, user.id, itemId, { folder_id: folderId })
+      toast.success(folderId ? 'Folder assigned' : 'Folder removed')
+      loadData()
+    } catch {
+      toast.error('Failed to assign folder')
     }
   }
 
@@ -186,8 +206,25 @@ export function BuryView({ onShowAdd, onEdit }: BuryViewProps) {
           {/* Title */}
           <h2 className="text-4xl font-bold mb-3" style={{ fontStyle: 'italic' }}>Bury</h2>
 
+          {/* Folders row — Pro-only */}
+          {isProTier(user?.is_premium ?? false, user?.subscription_tier) && (
+            <div className="flex gap-2 mt-3 flex-wrap items-center">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide mr-1">Folders</span>
+              <FolderBar
+                scope="bury"
+                userId={user!.id}
+                folders={folders}
+                selectedFolderId={selectedFolderId}
+                onSelectFolder={setSelectedFolderId}
+                onFolderCreated={(f) => setFolders(prev => [...prev, f])}
+                hoverClass="hover:bg-cyan-100"
+                newBtnHoverClass="hover:bg-cyan-100"
+              />
+            </div>
+          )}
+
           {/* Categories row */}
-          <div className="flex gap-2 flex-wrap items-center">
+          <div className="flex gap-2 flex-wrap items-center mt-3">
             {categories.length > 0 && (
               <>
                 <button
@@ -267,18 +304,35 @@ export function BuryView({ onShowAdd, onEdit }: BuryViewProps) {
                       link={item}
                       onDelete={() => handleDeleteItem(item.id)}
                       onEdit={onEdit ? () => onEdit(item) : undefined}
-                      extraMenu={categories.length > 0 ? (
-                        <div className="border-t border-gray-100">
-                          <p className="px-4 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">Category</p>
-                          <button onClick={() => handleAssignCategory(item.id, null)}
-                            className={`w-full px-4 py-2 text-left hover:bg-gray-100 text-sm ${!item.category_id ? 'font-bold' : ''}`}>None</button>
-                          {categories.map(cat => (
-                            <button key={cat.id} onClick={() => handleAssignCategory(item.id, cat.id)}
-                              className={`w-full px-4 py-2 text-left hover:bg-gray-100 text-sm ${item.category_id === cat.id ? 'font-bold text-cyan-700' : ''}`}>
-                              {item.category_id === cat.id ? '✓ ' : ''}{cat.name}
-                            </button>
-                          ))}
-                        </div>
+                      extraMenu={folders.length > 0 || categories.length > 0 ? (
+                        <>
+                          {folders.length > 0 && (
+                            <div className="border-t border-gray-100">
+                              <p className="px-4 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">Folder</p>
+                              <button onClick={() => handleAssignFolder(item.id, null)}
+                                className={`w-full px-4 py-2 text-left hover:bg-gray-100 text-sm ${!item.folder_id ? 'font-bold' : ''}`}>None</button>
+                              {folders.map(f => (
+                                <button key={f.id} onClick={() => handleAssignFolder(item.id, f.id)}
+                                  className={`w-full px-4 py-2 text-left hover:bg-gray-100 text-sm ${item.folder_id === f.id ? 'font-bold text-cyan-700' : ''}`}>
+                                  {item.folder_id === f.id ? '✓ ' : ''}{f.icon ? `${f.icon} ` : ''}{f.name}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          {categories.length > 0 && (
+                            <div className="border-t border-gray-100">
+                              <p className="px-4 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">Category</p>
+                              <button onClick={() => handleAssignCategory(item.id, null)}
+                                className={`w-full px-4 py-2 text-left hover:bg-gray-100 text-sm ${!item.category_id ? 'font-bold' : ''}`}>None</button>
+                              {categories.map(cat => (
+                                <button key={cat.id} onClick={() => handleAssignCategory(item.id, cat.id)}
+                                  className={`w-full px-4 py-2 text-left hover:bg-gray-100 text-sm ${item.category_id === cat.id ? 'font-bold text-cyan-700' : ''}`}>
+                                  {item.category_id === cat.id ? '✓ ' : ''}{cat.name}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </>
                       ) : null}
                     />
                   </div>

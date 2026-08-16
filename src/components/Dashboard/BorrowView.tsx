@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { useToast } from '@/context/ToastContext'
 import { supabase } from '@/lib/supabase'
-import { getLinksByStatus, updateLink, deleteLink } from '@/lib/dataService'
-import { Link, SavedItem, BorrowCategory } from '@/types'
+import { getLinksByStatus, updateLink, deleteLink, getFolders } from '@/lib/dataService'
+import { Link, SavedItem, BorrowCategory, Folder } from '@/types'
 import { Icon } from '../shared/Icon'
+import { FolderBar } from './FolderBar'
+import { isProTier } from '@/lib/premiumService'
 
 type FilterType = 'all' | 'url' | 'image' | 'file'
 
@@ -20,6 +22,7 @@ interface BorrowItem {
   file_size?: number
   created_at: string
   category_id: string | null
+  folder_id?: string | null
 }
 
 interface BorrowViewProps {
@@ -37,6 +40,8 @@ export function BorrowView({ onShowAdd }: BorrowViewProps) {
   const [isEditingCategory, setIsEditingCategory] = useState(false)
   const [categoryName, setCategoryName] = useState('')
   const [activeMenu, setActiveMenu] = useState<string | null>(null)
+  const [folders, setFolders] = useState<Folder[]>([])
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -72,18 +77,20 @@ export function BorrowView({ onShowAdd }: BorrowViewProps) {
   const loadData = async () => {
     if (!user) return
     const isPremium = user.is_premium ?? false
+    const isPro = isProTier(isPremium, user.subscription_tier)
 
     try {
-      // Links: route through dataService (local for free, cloud for paid)
       const borrowedLinks = await getLinksByStatus(isPremium, user.id, 'borrow')
 
-      // saved_items are cloud-only (premium); categories available to all users
-      const [savedRes, categoriesRes] = await Promise.all([
+      const [savedRes, categoriesRes, foldersData] = await Promise.all([
         isPremium
           ? supabase.from('saved_items').select('*').eq('user_id', user.id).eq('status', 'borrow').order('created_at', { ascending: false })
           : Promise.resolve({ data: [] }),
         supabase.from('borrow_categories').select('*').eq('user_id', user.id).order('position'),
+        isPro ? getFolders(true, user.id, 'borrow') : Promise.resolve([]),
       ])
+
+      if (isPro) setFolders(foldersData as Folder[])
 
       const linksRes = { data: borrowedLinks }
 
@@ -97,6 +104,7 @@ export function BorrowView({ onShowAdd }: BorrowViewProps) {
         content_type: link.content_type || 'url',
         created_at: link.created_at,
         category_id: link.category_id ?? null,
+        folder_id: link.folder_id ?? null,
       }))
 
       const savedItems: BorrowItem[] = (savedRes.data || []).map((item: SavedItem) => ({
@@ -109,6 +117,7 @@ export function BorrowView({ onShowAdd }: BorrowViewProps) {
         file_size: item.file_size,
         created_at: item.created_at,
         category_id: item.category_id,
+        folder_id: item.folder_id ?? null,
       }))
 
       const allItems = [...linkItems, ...savedItems].sort(
@@ -126,13 +135,14 @@ export function BorrowView({ onShowAdd }: BorrowViewProps) {
 
   const filteredItems = items.filter(item => {
     const matchesCategory = !selectedCategory || item.category_id === selectedCategory
+    const matchesFolder = !selectedFolderId || item.folder_id === selectedFolderId
 
-    if (filter === 'all') return matchesCategory
-    if (filter === 'url') return matchesCategory && (item.content_type === 'url' || item.type === 'link')
-    if (filter === 'image') return matchesCategory && item.content_type === 'image'
-    if (filter === 'file') return matchesCategory && (item.content_type === 'file' || item.content_type === 'pdf')
+    if (filter === 'all') return matchesCategory && matchesFolder
+    if (filter === 'url') return matchesCategory && matchesFolder && (item.content_type === 'url' || item.type === 'link')
+    if (filter === 'image') return matchesCategory && matchesFolder && item.content_type === 'image'
+    if (filter === 'file') return matchesCategory && matchesFolder && (item.content_type === 'file' || item.content_type === 'pdf')
 
-    return matchesCategory
+    return matchesCategory && matchesFolder
   })
 
   const handleCreateCategory = async () => {
@@ -194,6 +204,24 @@ export function BorrowView({ onShowAdd }: BorrowViewProps) {
     if (!url) return
     navigator.clipboard.writeText(url).then(() => toast.info('URL copied')).catch(() => {})
     setActiveMenu(null)
+  }
+
+  const handleAssignFolder = async (itemId: string, itemType: 'link' | 'saved_item', folderId: string | null) => {
+    if (!user) return
+    const isPremium = user.is_premium ?? false
+    try {
+      if (itemType === 'link') {
+        await updateLink(isPremium, user.id, itemId, { folder_id: folderId })
+      } else {
+        const { error } = await supabase.from('saved_items').update({ folder_id: folderId }).eq('id', itemId)
+        if (error) throw error
+      }
+      setActiveMenu(null)
+      toast.success(folderId ? 'Folder assigned' : 'Folder removed')
+      loadData()
+    } catch {
+      toast.error('Failed to assign folder')
+    }
   }
 
   const handleAssignCategory = async (itemId: string, itemType: 'link' | 'saved_item', categoryId: string | null) => {
@@ -368,6 +396,22 @@ export function BorrowView({ onShowAdd }: BorrowViewProps) {
               ? categories.find(c => c.id === selectedCategory)?.name
               : 'Borrow'}
           </h2>
+
+          {isProTier(user?.is_premium ?? false, user?.subscription_tier) && (
+            <div className="flex gap-2 mt-3 flex-wrap items-center">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide mr-1">Folders</span>
+              <FolderBar
+                scope="borrow"
+                userId={user!.id}
+                folders={folders}
+                selectedFolderId={selectedFolderId}
+                onSelectFolder={setSelectedFolderId}
+                onFolderCreated={(f) => setFolders(prev => [...prev, f])}
+                hoverClass="hover:bg-purple-100"
+                newBtnHoverClass="hover:bg-purple-100"
+              />
+            </div>
+          )}
 
           <div className="flex gap-2 mt-4 flex-wrap items-center">
             {categories.length > 0 && (
@@ -569,6 +613,26 @@ export function BorrowView({ onShowAdd }: BorrowViewProps) {
                               Copy URL
                             </button>
                           </>
+                        )}
+                        {folders.length > 0 && (
+                          <div className="border-t border-gray-100">
+                            <p className="px-4 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">Folder</p>
+                            <button
+                              onClick={() => handleAssignFolder(item.id, item.type, null)}
+                              className={`w-full px-4 py-2 text-left hover:bg-gray-100 transition text-sm ${!item.folder_id ? 'font-bold' : ''}`}
+                            >
+                              None
+                            </button>
+                            {folders.map(f => (
+                              <button
+                                key={f.id}
+                                onClick={() => handleAssignFolder(item.id, item.type, f.id)}
+                                className={`w-full px-4 py-2 text-left hover:bg-gray-100 transition text-sm ${item.folder_id === f.id ? 'font-bold text-purple-700' : ''}`}
+                              >
+                                {item.folder_id === f.id ? '✓ ' : ''}{f.icon ? `${f.icon} ` : ''}{f.name}
+                              </button>
+                            ))}
+                          </div>
                         )}
                         {categories.length > 0 && (
                           <div className="border-t border-gray-100">
