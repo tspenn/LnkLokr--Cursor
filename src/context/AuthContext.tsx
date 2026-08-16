@@ -12,6 +12,7 @@ import {
   markAwaitingPasswordReset,
   markPasswordRecoveryPending,
 } from '@/lib/authUrl'
+import { overlayLnklokrSubscription } from '@/lib/lnklokrSubscription'
 import { normalizeUser } from '@/lib/normalizeUser'
 import { LNKLOKR_SIGNUP_APP } from '@/lib/skylandTiers'
 import { User, AuthState } from '@/types'
@@ -25,7 +26,7 @@ async function fetchOrCreateUserProfile(authUser: SupabaseUser): Promise<User | 
     .maybeSingle()
 
   if (userData) {
-    return normalizeUser(userData as Record<string, unknown>)
+    return overlayLnklokrSubscription(normalizeUser(userData as Record<string, unknown>))
   }
 
   const { data: created, error } = await supabase
@@ -51,20 +52,22 @@ async function fetchOrCreateUserProfile(authUser: SupabaseUser): Promise<User | 
         .select('*')
         .eq('id', authUser.id)
         .maybeSingle()
-      if (retry) return normalizeUser(retry as Record<string, unknown>)
+      if (retry) {
+        return overlayLnklokrSubscription(normalizeUser(retry as Record<string, unknown>))
+      }
     }
 
     // Fall back to a minimal user object so sign-in isn't silently blocked
-    return normalizeUser({
+    return overlayLnklokrSubscription(normalizeUser({
       id: authUser.id,
       email: authUser.email ?? '',
       is_premium: false,
       subscription_tier: 'free',
       premium_until: null,
-    })
+    }))
   }
 
-  return normalizeUser(created as Record<string, unknown>)
+  return overlayLnklokrSubscription(normalizeUser(created as Record<string, unknown>))
 }
 
 interface AuthContextType extends AuthState {
