@@ -229,8 +229,10 @@ export function AddLinkModal({
   const handleSubmitLink = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    if (!formData.url || !formData.title) { setError('URL and title are required'); return }
-    try { new URL(formData.url) } catch { setError('Invalid URL'); return }
+    if (!formData.url) { setError('URL is required'); return }
+    let parsed: URL
+    try { parsed = new URL(formData.url) } catch { setError('Invalid URL'); return }
+    const title = formData.title.trim() || parsed.hostname.replace(/^www\./, '')
     setIsLoading(true)
     try {
       let thumbnail_url: string | null = null
@@ -239,7 +241,16 @@ export function AddLinkModal({
         const res = await fetch(`/api/scrape?url=${encodeURIComponent(formData.url)}`)
         if (res.ok) { const m = await res.json(); thumbnail_url = m.thumbnail_url ?? null; icon = m.icon ?? null }
       } catch { /* non-fatal */ }
-      await onAdd({ ...formData, thumbnail_url, icon, content_type: 'url', is_favorite: false, status: currentStatus })
+      await onAdd({
+        ...formData,
+        title,
+        folder_id: formData.folder_id || null,
+        thumbnail_url,
+        icon,
+        content_type: 'url',
+        is_favorite: false,
+        status: currentStatus,
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save link')
     } finally { setIsLoading(false) }

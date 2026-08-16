@@ -1,1 +1,397 @@
-import{c as S}from"./index.js";const I="https://psbdjnqcjpxapypcfigx.supabase.co",L="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBzYmRqbnFjanB4YXB5cGNmaWd4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzODA5OTAsImV4cCI6MjA4OTk1Njk5MH0.nOqbHOZYT8GKfqgUrXbZam4Q9B973gqWe_bC5drQVGk",_="https://lnklokr.vercel.app",l=S(I,L,{auth:{persistSession:!0,autoRefreshToken:!0,detectSessionInUrl:!1,storage:{getItem:async t=>(await chrome.storage.local.get([t]))[t]??null,setItem:async(t,e)=>{await chrome.storage.local.set({[t]:e})},removeItem:async t=>{await chrome.storage.local.remove([t])}}}});function w(t,e=""){const s=t.toLowerCase(),r=e.toLowerCase();return r.startsWith("image/")||/\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)(\?|$)/.test(s)?"image":r==="application/pdf"||s.endsWith(".pdf")?"pdf":r.startsWith("application/")||r.startsWith("video/")||r.startsWith("audio/")||/\.(zip|rar|7z|tar|gz|doc|docx|xls|xlsx|ppt|pptx|txt|mp4|mp3|avi|mov)(\?|$)/.test(s)?"file":"url"}function a(t,e,s=1){chrome.notifications.create({type:"basic",iconUrl:"icons/icon-128.png",title:t,message:e,priority:s})}async function v(){const{data:t,error:e}=await l.auth.getUser();if(e||!(t!=null&&t.user))throw new Error("Not authenticated. Please sign in to LnkLokr first.");return t.user}async function U(t){try{const{data:e}=await l.from("users").select("is_premium").eq("id",t).single();return(e==null?void 0:e.is_premium)??!1}catch{return!1}}async function T(t){try{const e=await fetch(`${_}/api/scrape?url=${encodeURIComponent(t)}`);return e.ok?await e.json():null}catch{return null}}async function g({url:t,title:e,description:s,tabTitle:r,status:n="keep"}){try{const o=await v(),i=await T(t),{error:p}=await l.from("links").insert({user_id:o.id,url:t,title:(i==null?void 0:i.title)||e||r||t,description:(i==null?void 0:i.description)||s||null,thumbnail_url:(i==null?void 0:i.thumbnail_url)||null,icon:(i==null?void 0:i.icon)||null,status:n,content_type:"url",tags:[],is_favorite:!1});if(p)throw new Error(p.message);return{success:!0}}catch(o){return{success:!1,error:o.message}}}async function k(t,e){try{const s=await v(),r=await U(s.id),n=w(e.src,t.type),o=e.status||"keep";if(r){const i=Date.now(),c=new URL(e.src).pathname.split("/").pop()||"file",u=c.replace(/[^a-zA-Z0-9.-]/g,"_").replace(/_{2,}/g,"_").slice(0,100),d=`${s.id}/${i}-${u}`,{error:f}=await l.storage.from("saved-images").upload(d,t,{contentType:t.type,cacheControl:"3600",upsert:!1});if(f)throw new Error(`Upload failed: ${f.message}`);const{data:y}=l.storage.from("saved-images").getPublicUrl(d),m=y.publicUrl,{error:h}=await l.from("links").insert({user_id:s.id,url:m,title:e.title||c,description:e.alt||null,thumbnail_url:n==="image"?m:null,status:o,content_type:n,tags:[],is_favorite:!1});if(h)throw await l.storage.from("saved-images").remove([d]),new Error(`Metadata save failed: ${h.message}`);return{success:!0,data:{publicUrl:m,contentType:n}}}else{const{error:i}=await l.from("links").insert({user_id:s.id,url:e.src,title:e.title||e.alt||e.src,description:e.alt||null,thumbnail_url:n==="image"?e.src:null,status:o,content_type:n,tags:[],is_favorite:!1});if(i)throw new Error(i.message);return{success:!0,data:{publicUrl:e.src,contentType:n}}}}catch(s){return{success:!1,error:s.message}}}const b=["keep","borrow","share","bury"],A={keep:"📦 Keep",borrow:"🔄 Borrow",share:"📤 Share",bury:"🔒 Bury"};chrome.runtime.onInstalled.addListener(()=>{chrome.contextMenus.create({id:"save-image",title:"Save Image to LnkLokr…",contexts:["image"]}),chrome.contextMenus.create({id:"save-link",title:"Save Link to LnkLokr…",contexts:["link"]}),chrome.contextMenus.create({id:"save-selection",title:"Save Selection to LnkLokr…",contexts:["selection"]});for(const t of["image","link","selection"])for(const e of b)chrome.contextMenus.create({id:`${t}-${e}`,title:A[e],parentId:`save-${t}`,contexts:[t==="image"?"image":t==="link"?"link":"selection"]})});chrome.contextMenus.onClicked.addListener(async(t,e)=>{if(!(e!=null&&e.id))return;const s=String(t.menuItemId);if(s.startsWith("image-")){const r=s.replace("image-",""),n=t.srcUrl;if(!n)return;try{const i=await(await fetch(n)).blob(),p={src:n,pageTitle:e.title||"",pageUrl:e.url||"",alt:"",title:"Saved Image",status:r},c=await k(i,p);if(c.success){const u=c.data.contentType==="image"?"Image":c.data.contentType==="pdf"?"PDF":"File";a(`${u} saved to ${r.charAt(0).toUpperCase()+r.slice(1)}!`,"Saved to LnkLokr")}else a("Save Failed",c.error||"Failed to save",2)}catch{a("Error","Failed to fetch or save image",2)}return}if(s.startsWith("link-")){const r=s.replace("link-",""),n=t.linkUrl||t.srcUrl||e.url;if(w(n)!=="url")try{const p=await(await fetch(n)).blob(),c={src:n,pageTitle:e.title||"",pageUrl:e.url||"",alt:"",title:n.split("/").pop()||"Saved File",status:r},u=await k(p,c);if(u.success){const d=u.data.contentType==="image"?"Image":u.data.contentType==="pdf"?"PDF":"File";a(`${d} saved to ${r.charAt(0).toUpperCase()+r.slice(1)}!`,"Saved to LnkLokr")}else a("Save Failed",u.error||"Failed to save",2)}catch{a("Error","Failed to fetch or save file",2)}else{const i=await g({url:n,title:t.selectionText||n,description:null,tabTitle:e.title,status:r});i.success?a(`Link saved to ${r.charAt(0).toUpperCase()+r.slice(1)}!`,"Saved to LnkLokr"):a("Save Failed",i.error||"Failed to save link",2)}return}if(s.startsWith("selection-")){const r=s.replace("selection-",""),n=e.url||"",o=await g({url:n,title:t.selectionText||e.title||n,description:t.selectionText||null,tabTitle:e.title,status:r});o.success?a(`Saved to ${r.charAt(0).toUpperCase()+r.slice(1)}!`,"Saved to LnkLokr"):a("Save Failed",o.error||"Failed to save",2)}});chrome.runtime.onMessage.addListener((t,e,s)=>{if(t.type==="SYNC_SESSION")return l.auth.setSession(t.session).then(()=>s({success:!0})),!0;if(t.type==="AUTH_TOKEN")return chrome.storage.local.get(["auth_token"],r=>s({token:r.auth_token})),!0;if(t.type==="SAVE_AUTH_TOKEN")return chrome.storage.local.set({auth_token:t.token},()=>s({success:!0})),!0});
+import { createClient } from '@supabase/supabase-js'
+
+const SUPABASE_URL = 'https://psbdjnqcjpxapypcfigx.supabase.co'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBzYmRqbnFjanB4YXB5cGNmaWd4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzODA5OTAsImV4cCI6MjA4OTk1Njk5MH0.nOqbHOZYT8GKfqgUrXbZam4Q9B973gqWe_bC5drQVGk'
+const APP_ORIGIN = 'https://lnklokr.vercel.app'
+
+// Shared chrome.storage.local adapter so the popup and service worker
+// both read/write Supabase sessions from the same bucket.
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: false,
+    storage: {
+      getItem: async (key) => {
+        const result = await chrome.storage.local.get([key])
+        return result[key] ?? null
+      },
+      setItem: async (key, value) => {
+        await chrome.storage.local.set({ [key]: value })
+      },
+      removeItem: async (key) => {
+        await chrome.storage.local.remove([key])
+      },
+    },
+  },
+})
+
+function detectContentType(url, mimeType = '') {
+  const urlLower = url.toLowerCase()
+  const mimeLower = mimeType.toLowerCase()
+
+  if (mimeLower.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)(\?|$)/.test(urlLower)) {
+    return 'image'
+  }
+  if (mimeLower === 'application/pdf' || urlLower.endsWith('.pdf')) {
+    return 'pdf'
+  }
+  if (
+    mimeLower.startsWith('application/') ||
+    mimeLower.startsWith('video/') ||
+    mimeLower.startsWith('audio/') ||
+    /\.(zip|rar|7z|tar|gz|doc|docx|xls|xlsx|ppt|pptx|txt|mp4|mp3|avi|mov)(\?|$)/.test(urlLower)
+  ) {
+    return 'file'
+  }
+  return 'url'
+}
+
+function notify(title, message, priority = 1) {
+  chrome.notifications.create({
+    type: 'basic',
+    iconUrl: 'icons/icon-128.png',
+    title,
+    message,
+    priority,
+  })
+}
+
+async function getAuthenticatedUser() {
+  const { data: userData, error } = await supabase.auth.getUser()
+  if (error || !userData?.user) throw new Error('Not authenticated. Please sign in to LnkLokr first.')
+  return userData.user
+}
+
+async function getUserIsPremium(userId) {
+  try {
+    const { data } = await supabase
+      .from('users')
+      .select('is_premium')
+      .eq('id', userId)
+      .single()
+    return data?.is_premium ?? false
+  } catch {
+    return false
+  }
+}
+
+// ─── Scrape OG metadata for a webpage URL ────────────────────────────────────
+async function scrapeMetadata(url) {
+  try {
+    const res = await fetch(`${APP_ORIGIN}/api/scrape?url=${encodeURIComponent(url)}`)
+    if (!res.ok) return null
+    return await res.json()
+  } catch {
+    return null
+  }
+}
+
+// ─── Save a webpage/URL link directly to the links table ─────────────────────
+async function saveWebpageLink({ url, title, description, tabTitle, status = 'keep', folderId = null }) {
+  try {
+    const user = await getAuthenticatedUser()
+
+    // Scrape server-side metadata — non-fatal if it fails
+    const meta = await scrapeMetadata(url)
+
+    const { error } = await supabase.from('links').insert({
+      user_id: user.id,
+      url,
+      title: meta?.title || title || tabTitle || url,
+      description: meta?.description || description || null,
+      thumbnail_url: meta?.thumbnail_url || null,
+      icon: meta?.icon || null,
+      status,
+      folder_id: folderId || null,
+      content_type: 'url',
+      tags: [],
+      is_favorite: false,
+    })
+
+    if (error) throw new Error(error.message)
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+}
+
+// ─── Save an image/file — premium uploads to Storage; free saves the URL only ─
+async function saveFileToLnklokr(blob, metadata) {
+  try {
+    const user = await getAuthenticatedUser()
+    const isPremium = await getUserIsPremium(user.id)
+    const contentType = detectContentType(metadata.src, blob.type)
+    const status = metadata.status || 'keep'
+
+    if (isPremium) {
+      // ── Premium: upload blob to Supabase Storage, record in links table ────
+      const timestamp = Date.now()
+      const urlPath = new URL(metadata.src).pathname
+      const originalFilename = urlPath.split('/').pop() || 'file'
+      const sanitizedFilename = originalFilename
+        .replace(/[^a-zA-Z0-9.-]/g, '_')
+        .replace(/_{2,}/g, '_')
+        .slice(0, 100)
+      const filename = `${user.id}/${timestamp}-${sanitizedFilename}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('saved-images')
+        .upload(filename, blob, {
+          contentType: blob.type,
+          cacheControl: '3600',
+          upsert: false,
+        })
+      if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`)
+
+      const { data: publicUrlData } = supabase.storage.from('saved-images').getPublicUrl(filename)
+      const publicUrl = publicUrlData.publicUrl
+
+      const { error: recordError } = await supabase.from('links').insert({
+        user_id: user.id,
+        url: publicUrl,
+        title: metadata.title || originalFilename,
+        description: metadata.alt || null,
+        thumbnail_url: contentType === 'image' ? publicUrl : null,
+        status,
+        folder_id: metadata.folderId || null,
+        content_type: contentType,
+        tags: [],
+        is_favorite: false,
+      })
+
+      if (recordError) {
+        await supabase.storage.from('saved-images').remove([filename])
+        throw new Error(`Metadata save failed: ${recordError.message}`)
+      }
+
+      return { success: true, data: { publicUrl, contentType } }
+    } else {
+      // ── Free tier: save just the source URL as a link (no blob upload) ────
+      const { error } = await supabase.from('links').insert({
+        user_id: user.id,
+        url: metadata.src,
+        title: metadata.title || metadata.alt || metadata.src,
+        description: metadata.alt || null,
+        thumbnail_url: contentType === 'image' ? metadata.src : null,
+        status,
+        folder_id: metadata.folderId || null,
+        content_type: contentType,
+        tags: [],
+        is_favorite: false,
+      })
+      if (error) throw new Error(error.message)
+      return { success: true, data: { publicUrl: metadata.src, contentType } }
+    }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+}
+
+// ─── Context menu setup ───────────────────────────────────────────────────────
+const STATUSES = ['keep', 'borrow', 'share', 'bury']
+const STATUS_LABELS = { keep: '📦 Keep', borrow: '🔄 Borrow', share: '📤 Share', bury: '🔒 Bury' }
+
+function parseMenuId(menuId) {
+  const match = String(menuId).match(/^(image|link|selection)-(keep|borrow|share|bury)(?:-(none|f-(.+)))?$/)
+  if (!match) return null
+  return { type: match[1], status: match[2], folderId: match[4] || null }
+}
+
+async function loadFoldersByScope() {
+  const foldersByScope = { keep: [], borrow: [], share: [], bury: [] }
+  try {
+    const user = await getAuthenticatedUser()
+    const { data } = await supabase
+      .from('folders')
+      .select('id, name, scope')
+      .eq('user_id', user.id)
+      .order('position')
+    for (const folder of data ?? []) {
+      const scope = STATUSES.includes(folder.scope) ? folder.scope : 'keep'
+      foldersByScope[scope].push(folder)
+    }
+  } catch {
+    // Not signed in — menus still work without folders
+  }
+  return foldersByScope
+}
+
+async function rebuildContextMenus() {
+  await chrome.contextMenus.removeAll()
+
+  chrome.contextMenus.create({ id: 'save-image', title: 'Save Image to LnkLokr…', contexts: ['image'] })
+  chrome.contextMenus.create({ id: 'save-link', title: 'Save Link to LnkLokr…', contexts: ['link'] })
+  chrome.contextMenus.create({ id: 'save-selection', title: 'Save Selection to LnkLokr…', contexts: ['selection'] })
+
+  const foldersByScope = await loadFoldersByScope()
+
+  for (const type of ['image', 'link', 'selection']) {
+    const contexts = [type === 'image' ? 'image' : type === 'link' ? 'link' : 'selection']
+    for (const status of STATUSES) {
+      const parentId = `${type}-${status}`
+      chrome.contextMenus.create({
+        id: parentId,
+        title: STATUS_LABELS[status],
+        parentId: `save-${type}`,
+        contexts,
+      })
+
+      const folders = foldersByScope[status]
+      if (folders.length === 0) continue
+
+      chrome.contextMenus.create({
+        id: `${parentId}-none`,
+        title: 'No folder',
+        parentId,
+        contexts,
+      })
+      for (const folder of folders) {
+        chrome.contextMenus.create({
+          id: `${parentId}-f-${folder.id}`,
+          title: String(folder.name || 'Folder').slice(0, 60),
+          parentId,
+          contexts,
+        })
+      }
+    }
+  }
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+  rebuildContextMenus()
+})
+
+chrome.runtime.onStartup.addListener(() => {
+  rebuildContextMenus()
+})
+
+rebuildContextMenus()
+
+// ─── Context menu click handler ───────────────────────────────────────────────
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (!tab?.id) return
+
+  const parsed = parseMenuId(info.menuItemId)
+  if (!parsed) return
+
+  const { type, status, folderId } = parsed
+
+  // ── Save image ─────────────────────────────────────────────────────────────
+  if (type === 'image') {
+    const imageSrc = info.srcUrl
+    if (!imageSrc) return
+
+    try {
+      const response = await fetch(imageSrc)
+      const blob = await response.blob()
+
+      const metadata = {
+        src: imageSrc,
+        pageTitle: tab.title || '',
+        pageUrl: tab.url || '',
+        alt: '',
+        title: 'Saved Image',
+        status,
+        folderId,
+      }
+
+      const result = await saveFileToLnklokr(blob, metadata)
+      if (result.success) {
+        const label = result.data.contentType === 'image' ? 'Image' : result.data.contentType === 'pdf' ? 'PDF' : 'File'
+        notify(`${label} saved to ${status.charAt(0).toUpperCase() + status.slice(1)}!`, 'Saved to LnkLokr')
+      } else {
+        notify('Save Failed', result.error || 'Failed to save', 2)
+      }
+    } catch {
+      notify('Error', 'Failed to fetch or save image', 2)
+    }
+    return
+  }
+
+  // ── Save link ──────────────────────────────────────────────────────────────
+  if (type === 'link') {
+    const url = info.linkUrl || info.srcUrl || tab.url
+    const contentType = detectContentType(url)
+
+    if (contentType !== 'url') {
+      try {
+        const response = await fetch(url)
+        const blob = await response.blob()
+        const metadata = {
+          src: url,
+          pageTitle: tab.title || '',
+          pageUrl: tab.url || '',
+          alt: '',
+          title: url.split('/').pop() || 'Saved File',
+          status,
+          folderId,
+        }
+        const result = await saveFileToLnklokr(blob, metadata)
+        if (result.success) {
+          const label = result.data.contentType === 'image' ? 'Image' : result.data.contentType === 'pdf' ? 'PDF' : 'File'
+          notify(`${label} saved to ${status.charAt(0).toUpperCase() + status.slice(1)}!`, 'Saved to LnkLokr')
+        } else {
+          notify('Save Failed', result.error || 'Failed to save', 2)
+        }
+      } catch {
+        notify('Error', 'Failed to fetch or save file', 2)
+      }
+    } else {
+      const result = await saveWebpageLink({
+        url,
+        title: info.selectionText || url,
+        description: null,
+        tabTitle: tab.title,
+        status,
+        folderId,
+      })
+      if (result.success) {
+        notify(`Link saved to ${status.charAt(0).toUpperCase() + status.slice(1)}!`, 'Saved to LnkLokr')
+      } else {
+        notify('Save Failed', result.error || 'Failed to save link', 2)
+      }
+    }
+    return
+  }
+
+  // ── Save selected text ─────────────────────────────────────────────────────
+  if (type === 'selection') {
+    const url = tab.url || ''
+    const result = await saveWebpageLink({
+      url,
+      title: info.selectionText || tab.title || url,
+      description: info.selectionText || null,
+      tabTitle: tab.title,
+      status,
+      folderId,
+    })
+    if (result.success) {
+      notify(`Saved to ${status.charAt(0).toUpperCase() + status.slice(1)}!`, 'Saved to LnkLokr')
+    } else {
+      notify('Save Failed', result.error || 'Failed to save', 2)
+    }
+  }
+})
+
+// ─── Message listener (popup ↔ background) ───────────────────────────────────
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  // Popup sends its Supabase session so the service worker can use it
+  if (message.type === 'SYNC_SESSION') {
+    supabase.auth.setSession(message.session).then(async () => {
+      await rebuildContextMenus()
+      sendResponse({ success: true })
+    })
+    return true
+  }
+
+  // Legacy token helpers — kept for compatibility
+  if (message.type === 'AUTH_TOKEN') {
+    chrome.storage.local.get(['auth_token'], (result) => sendResponse({ token: result.auth_token }))
+    return true
+  }
+  if (message.type === 'SAVE_AUTH_TOKEN') {
+    chrome.storage.local.set({ auth_token: message.token }, () => sendResponse({ success: true }))
+    return true
+  }
+})

@@ -323,6 +323,7 @@ export function Dashboard() {
       await addFolder(user.is_premium ?? false, user.id, {
         name,
         position: folders.length,
+        scope: 'keep',
       })
       setNewFolderName('')
       setShowNewFolder(false)

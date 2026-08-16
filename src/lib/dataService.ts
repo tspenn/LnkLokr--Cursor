@@ -40,12 +40,33 @@ export async function getLinksByStatus(
   return data ?? []
 }
 
+const LINK_INSERT_KEYS = [
+  'url',
+  'title',
+  'description',
+  'folder_id',
+  'tags',
+  'thumbnail_url',
+  'icon',
+  'notes',
+  'is_favorite',
+  'status',
+  'category_id',
+  'content_type',
+  'opfs_path',
+] as const
+
 export async function addLink(
   _isPremium: boolean,
   userId: string,
   linkData: Partial<Link>,
 ): Promise<void> {
-  const { error } = await supabase.from('links').insert({ ...linkData, user_id: userId })
+  const row: Record<string, unknown> = { user_id: userId }
+  for (const key of LINK_INSERT_KEYS) {
+    if (linkData[key] !== undefined) row[key] = linkData[key]
+  }
+  if (row.folder_id === '') row.folder_id = null
+  const { error } = await supabase.from('links').insert(row)
   if (error) throw error
 }
 
