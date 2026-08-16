@@ -13,6 +13,7 @@ import {
   markPasswordRecoveryPending,
 } from '@/lib/authUrl'
 import { normalizeUser } from '@/lib/normalizeUser'
+import { LNKLOKR_SIGNUP_APP } from '@/lib/skylandTiers'
 import { User, AuthState } from '@/types'
 import type { User as SupabaseUser } from '@supabase/supabase-js'
 
@@ -274,6 +275,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         password,
         options: {
           emailRedirectTo: getConfirmRedirectUrl(),
+          data: { signup_app: LNKLOKR_SIGNUP_APP },
         },
       })
 

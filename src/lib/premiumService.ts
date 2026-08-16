@@ -1,4 +1,5 @@
 import { APP_KEY } from './appKey'
+import { isUnpaidProfilesTier, LNKLOKR_FREE_TIER_LABEL } from './skylandTiers'
 
 /**
  * LnkLokr subscription tiers.
@@ -122,7 +123,7 @@ export const TIER_ORDER: TierId[] = [
 
 export const FREE_TIER = {
   tierKey: 'free' as TierKey,
-  name: 'LnkLokr Free',
+  name: LNKLOKR_FREE_TIER_LABEL,
   priceLabel: 'Free forever',
   description: 'Save links with images on your phone. Try the full LnkLokr workflow.',
   features: [
@@ -181,6 +182,7 @@ export async function openBillingPortal(email: string): Promise<void> {
 /** Resolve the current user's tier from their Supabase is_premium + subscription data. */
 export function resolveTierKey(isPremium: boolean, planName?: string | null): TierKey {
   if (!isPremium) return 'free'
+  if (planName && isUnpaidProfilesTier(planName)) return 'free'
   if (planName?.toLowerCase().includes('pro')) return 'pro'
   return 'solo'
 }
