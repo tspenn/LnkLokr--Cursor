@@ -241,6 +241,7 @@ export function AddLinkModal({
       let listing_currency: string | null = null
       let listing_colors: string | null = null
       let listing_options: string | null = null
+      let scrapedDescription: string | null = null
       try {
         const res = await fetch(`/api/scrape?url=${encodeURIComponent(formData.url)}`)
         if (res.ok) {
@@ -251,11 +252,13 @@ export function AddLinkModal({
           listing_currency = m.listing_currency ?? null
           listing_colors = m.listing_colors ?? null
           listing_options = m.listing_options ?? null
+          scrapedDescription = m.listing_description || m.description || null
         }
       } catch { /* non-fatal */ }
       await onAdd({
         ...formData,
         title,
+        description: formData.description.trim() || scrapedDescription,
         folder_id: formData.folder_id || null,
         thumbnail_url,
         icon,

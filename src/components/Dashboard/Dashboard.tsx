@@ -12,6 +12,7 @@ import { AddLinkModal } from './AddLinkModal'
 import { SettingsPanel } from './SettingsPanel'
 import { SavedGallery } from './SavedGallery'
 import { ExportPanel } from './ExportPanel'
+import { downloadFolderCsv } from '@/lib/exportCsv'
 import { BorrowView } from './BorrowView'
 import { BuryView } from './BuryView'
 import { ShareView } from './ShareView'
@@ -341,6 +342,16 @@ export function Dashboard() {
     setActiveTab('links')
   }
 
+  const handleExportFolder = (folder: Folder) => {
+    const folderLinks = links.filter(link => link.folder_id === folder.id)
+    if (folderLinks.length === 0) {
+      toast.error(`“${folder.name}” is empty`)
+      return
+    }
+    downloadFolderCsv(folderLinks, folder.name)
+    toast.success(`Exported ${folderLinks.length} link${folderLinks.length === 1 ? '' : 's'} from ${folder.name}`)
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50">
@@ -552,6 +563,7 @@ export function Dashboard() {
                   folders={folders}
                   selectedFolderId={null}
                   onSelectFolder={openFolder}
+                  onExportFolder={handleExportFolder}
                 />
               ) : !showNewFolder && (
                 <button
@@ -652,6 +664,7 @@ export function Dashboard() {
                             folders={folders}
                             selectedFolderId={selectedFolderId}
                             onSelectFolder={openFolder}
+                            onExportFolder={handleExportFolder}
                           />
                         </div>
                       )}
@@ -697,11 +710,26 @@ export function Dashboard() {
 
                     {filteredLinks.length > 0 ? (
                       <div>
-                        <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                          {selectedFolderId && folders.find(f => f.id === selectedFolderId)
-                            ? folders.find(f => f.id === selectedFolderId)?.name
-                            : 'All Items'}
-                        </h2>
+                        <div className="flex items-center justify-between gap-3 mb-4">
+                          <h2 className="text-lg font-semibold text-gray-900">
+                            {selectedFolderId && folders.find(f => f.id === selectedFolderId)
+                              ? folders.find(f => f.id === selectedFolderId)?.name
+                              : 'All Items'}
+                          </h2>
+                          {selectedFolderId && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const folder = folders.find(f => f.id === selectedFolderId)
+                                if (folder) handleExportFolder(folder)
+                              }}
+                              className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 font-medium"
+                            >
+                              <Icon name="download" size={15} />
+                              Export CSV
+                            </button>
+                          )}
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                           {filteredLinks.map(link => (
                             <LinkCard

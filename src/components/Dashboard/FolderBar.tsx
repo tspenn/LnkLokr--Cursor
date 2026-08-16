@@ -12,6 +12,7 @@ interface FolderBarProps {
   selectedFolderId: string | null
   onSelectFolder: (id: string | null) => void
   onFolderCreated: (folder: Folder) => void
+  onExportFolder?: (folder: Folder) => void
   /** Tailwind classes applied to the active tab button (default: black on white) */
   activeClass?: string
   /** Tailwind hover class for inactive tabs (default: hover:bg-gray-100) */
@@ -27,6 +28,7 @@ export function FolderBar({
   selectedFolderId,
   onSelectFolder,
   onFolderCreated,
+  onExportFolder,
   activeClass = 'bg-black text-white',
   hoverClass = 'hover:bg-gray-100',
   newBtnHoverClass = 'hover:bg-gray-100',
@@ -67,14 +69,25 @@ export function FolderBar({
             All
           </button>
           {folders.map(folder => (
-            <button
-              key={folder.id}
-              onClick={() => onSelectFolder(folder.id)}
-              className={`${tabBase} ${selectedFolderId === folder.id ? activeClass : `bg-white ${hoverClass}`}`}
-            >
-              {folder.icon ? <span className="mr-1">{folder.icon}</span> : null}
-              {folder.name}
-            </button>
+            <div key={folder.id} className="flex items-stretch">
+              <button
+                onClick={() => onSelectFolder(folder.id)}
+                className={`${tabBase} ${selectedFolderId === folder.id ? activeClass : `bg-white ${hoverClass}`}`}
+              >
+                {folder.icon ? <span className="mr-1">{folder.icon}</span> : null}
+                {folder.name}
+              </button>
+              {onExportFolder && (
+                <button
+                  type="button"
+                  onClick={() => onExportFolder(folder)}
+                  title={`Export ${folder.name} as CSV`}
+                  className={`${tabBase} border-l-0 ${selectedFolderId === folder.id ? activeClass : `bg-white ${hoverClass}`}`}
+                >
+                  <Icon name="download" size={14} />
+                </button>
+              )}
+            </div>
           ))}
         </>
       )}

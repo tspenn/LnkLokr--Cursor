@@ -8,6 +8,7 @@ import { Icon } from '../shared/Icon'
 import { LinkCard } from './LinkCard'
 import { FolderBar } from './FolderBar'
 import { isProTier } from '@/lib/premiumService'
+import { downloadFolderCsv } from '@/lib/exportCsv'
 
 type FilterType = 'all' | 'url' | 'image' | 'file'
 
@@ -217,6 +218,15 @@ export function BuryView({ onShowAdd, onEdit }: BuryViewProps) {
                 selectedFolderId={selectedFolderId}
                 onSelectFolder={setSelectedFolderId}
                 onFolderCreated={(f) => setFolders(prev => [...prev, f])}
+                onExportFolder={(folder) => {
+                  const folderLinks = items.filter(link => link.folder_id === folder.id)
+                  if (folderLinks.length === 0) {
+                    toast.error(`“${folder.name}” is empty`)
+                    return
+                  }
+                  downloadFolderCsv(folderLinks, folder.name)
+                  toast.success(`Exported ${folderLinks.length} link${folderLinks.length === 1 ? '' : 's'} from ${folder.name}`)
+                }}
                 hoverClass="hover:bg-cyan-100"
                 newBtnHoverClass="hover:bg-cyan-100"
               />

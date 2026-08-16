@@ -3,7 +3,9 @@ import { startCheckout } from '@/lib/premiumService'
 import { useAuth } from '@/context/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { opfsStore, downloadFile } from '@/lib/opfsStore'
+import { downloadFolderCsv } from '@/lib/exportCsv'
 import { Icon } from '../shared/Icon'
+import type { Folder, Link } from '@/types'
 
 interface ExportPanelProps {
   onClose: () => void
@@ -20,21 +22,27 @@ export function ExportPanel({ onClose }: ExportPanelProps) {
   const isPremium = user?.is_premium ?? false
   const [stats, setStats] = useState<Stats>({ total_links: 0, total_folders: 0, local_files: 0 })
   const [exporting, setExporting] = useState(false)
-  const [exportingCsv, setExportingCsv] = useState(false)
+  const [exportingCsv, setExportingCsv] = useState<string | null>(null)
   const [exportingFiles, setExportingFiles] = useState(false)
+  const [folders, setFolders] = useState<Folder[]>([])
+  const [links, setLinks] = useState<Link[]>([])
   const [upgrading, setUpgrading] = useState<'solo-monthly' | 'solo-yearly' | null>(null)
 
   useEffect(() => {
     if (!user) return
     const loadStats = async () => {
       const [linksRes, foldersRes, fileIds] = await Promise.all([
-        supabase.from('links').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
-        supabase.from('folders').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
+        supabase.from('links').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
+        supabase.from('folders').select('*').eq('user_id', user.id).order('name'),
         opfsStore.isSupported() ? opfsStore.listFileIds(user.id) : Promise.resolve([]),
       ])
+      const allLinks = (linksRes.data ?? []) as Link[]
+      const allFolders = (foldersRes.data ?? []) as Folder[]
+      setLinks(allLinks)
+      setFolders(allFolders)
       setStats({
-        total_links: linksRes.count ?? 0,
-        total_folders: foldersRes.count ?? 0,
+        total_links: allLinks.length,
+        total_folders: allFolders.length,
         local_files: fileIds.length,
       })
     }
@@ -84,68 +92,53 @@ export function ExportPanel({ onClose }: ExportPanelProps) {
     }
   }
 
-  const csvEscape = (value: unknown): string => {
-    const text = value == null ? '' : Array.isArray(value) ? value.join('; ') : String(value)
-    if (/[",\n\r]/.test(text)) return `"${text.replace(/"/g, '""')}"`
-    return text
+  const exportOneFolder = (folderId: string | null, folderName: string) => {
+    const folderLinks = links.filter(link =>
+      folderId ? link.folder_id === folderId : !link.folder_id
+    )
+    if (folderLinks.length === 0) {
+      alert(`“${folderName}” has no links to export.`)
+      return
+    }
+    downloadFolderCsv(folderLinks, folderName)
   }
 
-  /** Export all link rows as CSV. Image files are omitted; image_url is included. */
-  const handleDownloadCsv = async () => {
-    if (!user) return
-    setExportingCsv(true)
+  const handleDownloadFolderCsv = (folderId: string | null, folderName: string) => {
+    setExportingCsv(folderId ?? 'unfiled')
     try {
-      const [linksRes, foldersRes] = await Promise.all([
-        supabase.from('links').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
-        supabase.from('folders').select('id, name').eq('user_id', user.id),
-      ])
-      const folderName = new Map((foldersRes.data ?? []).map(f => [f.id, f.name]))
-      const headers = [
-        'title',
-        'url',
-        'image_url',
-        'description',
-        'folder',
-        'status',
-        'price',
-        'currency',
-        'colors',
-        'options',
-        'tags',
-        'notes',
-        'content_type',
-        'created_at',
-      ]
-      const rows = (linksRes.data ?? []).map(link => [
-        csvEscape(link.title),
-        csvEscape(link.url),
-        csvEscape(link.thumbnail_url),
-        csvEscape(link.description),
-        csvEscape(link.folder_id ? folderName.get(link.folder_id) ?? '' : ''),
-        csvEscape(link.status),
-        csvEscape(link.listing_price),
-        csvEscape(link.listing_currency),
-        csvEscape(link.listing_colors),
-        csvEscape(link.listing_options),
-        csvEscape(link.tags),
-        csvEscape(link.notes),
-        csvEscape(link.content_type),
-        csvEscape(link.created_at),
-      ].join(','))
-      const csv = [headers.join(','), ...rows].join('\r\n')
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `lnklokr-links-${new Date().toISOString().split('T')[0]}.csv`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
+      exportOneFolder(folderId, folderName)
+    } finally {
+      setExportingCsv(null)
+    }
+  }
+
+  /** Download one CSV per folder, plus unfiled links if any. */
+  const handleDownloadEachFolder = async () => {
+    setExportingCsv('all')
+    try {
+      const unfiled = links.filter(link => !link.folder_id)
+      const groups = [
+        ...folders.map(folder => ({
+          id: folder.id,
+          name: folder.name,
+          rows: links.filter(link => link.folder_id === folder.id),
+        })),
+        ...(unfiled.length ? [{ id: null as string | null, name: 'Unfiled', rows: unfiled }] : []),
+      ].filter(group => group.rows.length > 0)
+
+      if (groups.length === 0) {
+        alert('No links to export.')
+        return
+      }
+
+      for (const group of groups) {
+        downloadFolderCsv(group.rows, group.name)
+        await new Promise(r => setTimeout(r, 400))
+      }
     } catch {
       alert('Failed to export CSV')
     } finally {
-      setExportingCsv(false)
+      setExportingCsv(null)
     }
   }
 
@@ -253,15 +246,54 @@ export function ExportPanel({ onClose }: ExportPanelProps) {
               </div>
             </div>
             <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">
-              Downloads all your saved links, folders, and metadata. Use this to back up or transfer your collection.
+              Each folder downloads as its own CSV. JSON is a full backup of every folder.
             </p>
+            <div className="space-y-2 mb-3 max-h-48 overflow-y-auto">
+              {folders.map(folder => {
+                const count = links.filter(link => link.folder_id === folder.id).length
+                return (
+                  <div key={folder.id} className="flex items-center justify-between gap-2 bg-white/70 dark:bg-gray-700/50 rounded-lg px-3 py-2">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                      {folder.icon ? `${folder.icon} ` : ''}{folder.name}
+                      <span className="ml-2 text-xs text-gray-500 font-normal">{count}</span>
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadFolderCsv(folder.id, folder.name)}
+                      disabled={exportingCsv !== null || count === 0}
+                      className="text-sm font-medium text-green-700 hover:text-green-900 disabled:opacity-40"
+                    >
+                      {exportingCsv === folder.id ? '…' : 'CSV'}
+                    </button>
+                  </div>
+                )
+              })}
+              {links.some(link => !link.folder_id) && (
+                <div className="flex items-center justify-between gap-2 bg-white/70 dark:bg-gray-700/50 rounded-lg px-3 py-2">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                    Unfiled
+                    <span className="ml-2 text-xs text-gray-500 font-normal">
+                      {links.filter(link => !link.folder_id).length}
+                    </span>
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadFolderCsv(null, 'Unfiled')}
+                    disabled={exportingCsv !== null}
+                    className="text-sm font-medium text-green-700 hover:text-green-900 disabled:opacity-40"
+                  >
+                    {exportingCsv === 'unfiled' ? '…' : 'CSV'}
+                  </button>
+                </div>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <button
-                onClick={handleDownloadCsv}
-                disabled={exportingCsv}
+                onClick={handleDownloadEachFolder}
+                disabled={exportingCsv !== null}
                 className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition shadow-md disabled:opacity-50"
               >
-                {exportingCsv ? 'Exporting…' : 'Download CSV'}
+                {exportingCsv === 'all' ? 'Exporting…' : 'Each folder'}
               </button>
               <button
                 onClick={handleDownloadMetadata}
@@ -272,7 +304,7 @@ export function ExportPanel({ onClose }: ExportPanelProps) {
               </button>
             </div>
             <p className="text-xs text-gray-500 mt-2">
-              CSV includes title, URL, image URL, price, colors, and options. Image files are not included.
+              CSV includes title, URL, image URL, description, price, colors, and options. Image files are not included.
             </p>
           </div>
 
