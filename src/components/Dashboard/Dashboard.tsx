@@ -472,33 +472,35 @@ export function Dashboard() {
               <h2 className="text-4xl font-bold mb-2" style={{ fontStyle: 'italic' }}>Keep</h2>
             </div>
 
-            {/* Paste hint */}
-            <div className="text-center text-sm text-gray-400 bg-gray-50 border border-dashed border-gray-300 rounded-xl py-3 px-4">
-              💡 Press <kbd className="px-1.5 py-0.5 bg-white border border-gray-300 rounded text-xs font-mono">Ctrl+V</kbd> anywhere to instantly save a copied URL or image
-            </div>
+            <button
+              type="button"
+              onClick={handleRightClickPaste}
+              className="w-full bg-purple-200 hover:bg-purple-300 border-4 border-black rounded-2xl px-5 py-8 text-center shadow-lg hover:shadow-xl transition"
+            >
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900">
+                Press <kbd className="px-2 py-0.5 bg-white border-2 border-black rounded-lg font-mono">Ctrl+V</kbd>
+              </p>
+              <p className="mt-2 text-sm sm:text-base font-medium text-gray-800">
+                anywhere to save a copied URL or image
+              </p>
+              <p className="mt-1 text-xs text-gray-600">or click here to paste</p>
+            </button>
 
-            {/* Add actions — one per type so intent is obvious */}
-            <div className="space-y-3">
+            <div className="flex justify-center gap-3 text-xs sm:text-sm text-gray-500">
               <button
-                onClick={() => openAddModal('link')}
-                className="w-full bg-purple-200 hover:bg-purple-300 border-4 border-black rounded-full p-5 text-xl font-bold transition shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
-              >
-                <Icon name="link" size={24} />
-                Save a URL
-              </button>
-              <button
+                type="button"
                 onClick={() => openAddModal('image')}
-                className="w-full bg-yellow-100 hover:bg-yellow-200 border-4 border-black rounded-full p-5 text-xl font-bold transition shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
+                className="hover:text-gray-800 underline-offset-2 hover:underline"
               >
-                <Icon name="image" size={24} />
-                Upload an Image
+                Upload an image
               </button>
+              <span aria-hidden className="text-gray-300">·</span>
               <button
+                type="button"
                 onClick={() => openAddModal('file')}
-                className="w-full bg-green-100 hover:bg-green-200 border-4 border-black rounded-full p-5 text-xl font-bold transition shadow-lg hover:shadow-xl flex items-center justify-center gap-3"
+                className="hover:text-gray-800 underline-offset-2 hover:underline"
               >
-                <Icon name="file" size={24} />
-                Upload a File or PDF
+                Upload a file or PDF
               </button>
             </div>
 
@@ -561,35 +563,33 @@ export function Dashboard() {
               )}
             </div>
 
-            <div className="border-t border-gray-200 pt-4 space-y-3">
-              <p className="text-sm text-gray-500 text-center font-medium">Browse your collection</p>
+            <div className="border-t border-gray-200 pt-3 space-y-1.5">
+              <p className="text-xs text-gray-400 text-center">Browse your collection</p>
               <button
                 onClick={() => setActiveTab('links')}
-                className="w-full bg-purple-100 border-4 border-black rounded-full p-5 text-xl font-medium hover:bg-purple-200 transition shadow-lg hover:shadow-xl"
+                className="w-full bg-white/80 border border-gray-300 rounded-lg py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-800 transition"
               >
                 URLs &amp; Images
               </button>
-
               <button
                 onClick={() => setActiveTab('files')}
-                className="w-full bg-purple-100 border-4 border-black rounded-full p-5 text-xl font-medium hover:bg-purple-200 transition shadow-lg hover:shadow-xl"
+                className="w-full bg-white/80 border border-gray-300 rounded-lg py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-800 transition"
               >
                 Files
               </button>
-
               <button
                 onClick={() => setActiveTab('pdfs')}
-                className="w-full bg-purple-100 border-4 border-black rounded-full p-5 text-xl font-medium hover:bg-purple-200 transition shadow-lg hover:shadow-xl"
+                className="w-full bg-white/80 border border-gray-300 rounded-lg py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-800 transition"
               >
                 PDFs
               </button>
             </div>
 
-            <div className="flex justify-center pt-4">
+            <div className="flex justify-center pt-2">
               <img
                 src="/icons/treasure_chest_transparent.png"
-                alt="Treasure Chest"
-                className="w-40 h-40 object-contain drop-shadow-2xl"
+                alt=""
+                className="w-16 h-16 object-contain opacity-40"
               />
             </div>
 
@@ -622,17 +622,10 @@ export function Dashboard() {
                     </div>
                   )}
                   <button
-                    onClick={() => openAddModal('link')}
-                    className="flex items-center gap-2 px-4 py-2 bg-purple-200 hover:bg-purple-300 border border-black rounded-lg transition font-medium"
-                  >
-                    <Icon name="link" size={16} />
-                    URL
-                  </button>
-                  <button
                     onClick={() => openAddModal('image')}
-                    className="flex items-center gap-2 px-4 py-2 bg-yellow-100 hover:bg-yellow-200 border border-black rounded-lg transition font-medium"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
                   >
-                    <Icon name="image" size={16} />
+                    <Icon name="image" size={14} />
                     Image
                   </button>
                 </div>
@@ -734,28 +727,25 @@ export function Dashboard() {
                           </>
                         ) : (
                           <>
-                            <p className="text-gray-600 mb-5">Nothing saved yet</p>
-                            <div className="flex flex-col items-center gap-3">
+                            <p className="text-gray-600 mb-3">Nothing saved yet</p>
+                            <p className="text-lg font-bold text-gray-900 mb-4">
+                              Press <kbd className="px-1.5 py-0.5 bg-white border-2 border-black rounded font-mono text-base">Ctrl+V</kbd> to save
+                            </p>
+                            <div className="flex justify-center gap-3 text-sm text-gray-500">
                               <button
-                                onClick={() => openAddModal('link')}
-                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-purple-200 hover:bg-purple-300 border border-black rounded-lg transition font-medium"
-                              >
-                                <Icon name="link" size={16} />
-                                Save a URL
-                              </button>
-                              <button
+                                type="button"
                                 onClick={() => openAddModal('image')}
-                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-yellow-100 hover:bg-yellow-200 border border-black rounded-lg transition font-medium"
+                                className="hover:text-gray-800 underline-offset-2 hover:underline"
                               >
-                                <Icon name="image" size={16} />
-                                Upload an Image
+                                Upload an image
                               </button>
+                              <span aria-hidden className="text-gray-300">·</span>
                               <button
+                                type="button"
                                 onClick={() => openAddModal('file')}
-                                className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-100 hover:bg-green-200 border border-black rounded-lg transition font-medium"
+                                className="hover:text-gray-800 underline-offset-2 hover:underline"
                               >
-                                <Icon name="file" size={16} />
-                                Upload a File
+                                Upload a file
                               </button>
                             </div>
                           </>

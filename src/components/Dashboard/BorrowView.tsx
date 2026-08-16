@@ -697,28 +697,26 @@ export function BorrowView({ onShowAdd }: BorrowViewProps) {
               <p className="text-gray-500 text-sm mb-6">Save things you want to revisit, return, or share later</p>
               {onShowAdd && (
                 <div className="flex flex-col items-center gap-3">
-                  <button
-                    onClick={() => onShowAdd('link')}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-purple-100 hover:bg-purple-200 border-2 border-black text-black rounded-lg transition font-medium"
-                  >
-                    <Icon name="link" size={16} />
-                    Save a URL
-                  </button>
-                  <button
-                    onClick={() => onShowAdd('image')}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-pink-100 hover:bg-pink-200 border-2 border-black text-black rounded-lg transition font-medium"
-                  >
-                    <Icon name="image" size={16} />
-                    Upload an Image
-                  </button>
-                  <button
-                    onClick={() => onShowAdd('file')}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 border-2 border-black text-black rounded-lg transition font-medium"
-                    style={{ backgroundColor: '#ede9fe' }}
-                  >
-                    <Icon name="file" size={16} />
-                    Upload a File
-                  </button>
+                  <p className="text-lg font-bold text-gray-900">
+                    Press <kbd className="px-1.5 py-0.5 bg-white border-2 border-black rounded font-mono text-base">Ctrl+V</kbd> to save
+                  </p>
+                  <div className="flex justify-center gap-3 text-sm text-gray-500">
+                    <button
+                      type="button"
+                      onClick={() => onShowAdd('image')}
+                      className="hover:text-gray-800 underline-offset-2 hover:underline"
+                    >
+                      Upload an image
+                    </button>
+                    <span aria-hidden className="text-gray-300">·</span>
+                    <button
+                      type="button"
+                      onClick={() => onShowAdd('file')}
+                      className="hover:text-gray-800 underline-offset-2 hover:underline"
+                    >
+                      Upload a file
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
