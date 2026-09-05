@@ -78,12 +78,16 @@ function AppContent() {
     return <ResetPassword />
   }
 
-  if (!isAuthenticated) {
+  // Stripe return without a session still needs the signup screen
+  const checkoutSuccess = new URLSearchParams(location.search).get('checkout') === 'success'
+  if (!isAuthenticated && checkoutSuccess) {
     return <LandingPage />
   }
 
   return (
     <Routes>
+      <Route path="/welcome" element={<LandingPage />} />
+      <Route path="/pricing" element={<LandingPage />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/share" element={<ShareTarget />} />
       <Route path="/" element={<Dashboard />} />

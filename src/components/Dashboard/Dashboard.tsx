@@ -17,6 +17,10 @@ import { BuryView } from './BuryView'
 import { ShareView } from './ShareView'
 import { TickerTapeAd } from './TickerTapeAd'
 import { EditLinkModal } from './EditLinkModal'
+import { CloudMigrationModal } from './CloudMigrationModal'
+import { GuestPersistModal, type PersistReason } from '../Landing/GuestPersistModal'
+import { AuthModal } from '../Landing/AuthModal'
+import { localStore } from '@/lib/localStore'
 import { Header } from '../shared/Header'
 import { Icon } from '../shared/Icon'
 
@@ -55,28 +59,32 @@ export function Dashboard() {
   const [newFolderName, setNewFolderName] = useState('')
   const [showNewFolder, setShowNewFolder] = useState(false)
   const [creatingFolder, setCreatingFolder] = useState(false)
+  const [persistGate, setPersistGate] = useState<PersistReason | null>(null)
+  const [showAuth, setShowAuth] = useState<'signin' | 'signup' | null>(null)
+  const [migrationCounts, setMigrationCounts] = useState<{ links: number; folders: number } | null>(null)
+
+  const userId = user?.id ?? ''
+  const isPremium = user?.is_premium ?? false
 
   const loadData = async () => {
-    if (!user) return
     try {
-      const isPremium = user.is_premium ?? false
-
       const [fetchedFolders, fetchedLinks] = await Promise.all([
-        getFolders(isPremium, user.id),
-        getLinks(isPremium, user.id),
+        getFolders(isPremium, userId),
+        getLinks(isPremium, userId),
       ])
 
       setFolders(fetchedFolders)
       // Keep view: only show items with status 'keep' (or no status set)
       setLinks(fetchedLinks.filter(l => !l.status || l.status === 'keep'))
 
-      // Load bury password for all users
-      const { data: userRow } = await supabase
-        .from('users')
-        .select('bury_password')
-        .eq('id', user.id)
-        .maybeSingle()
-      if (userRow) setBuryPassword(userRow.bury_password)
+      if (user) {
+        const { data: userRow } = await supabase
+          .from('users')
+          .select('bury_password')
+          .eq('id', user.id)
+          .maybeSingle()
+        if (userRow) setBuryPassword(userRow.bury_password)
+      }
     } catch (error) {
       toast.error('Failed to load your links')
     } finally {
@@ -85,10 +93,9 @@ export function Dashboard() {
   }
 
   useEffect(() => {
-    if (!user) return
-
     loadData()
 
+    if (!user) return
 
     const channel = supabase
       .channel(`links-${user.id}`)
@@ -102,6 +109,22 @@ export function Dashboard() {
     return () => {
       supabase.removeChannel(channel)
     }
+  }, [user])
+
+  // After first sign-in, offer to keep anything they saved as a guest
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    ;(async () => {
+      await localStore.init()
+      const done = await localStore.getSetting('cloud_migration_done')
+      if (done || cancelled) return
+      const { links: localLinks, folders: localFolders } = await localStore.exportData()
+      if (!cancelled && (localLinks.length > 0 || localFolders.length > 0)) {
+        setMigrationCounts({ links: localLinks.length, folders: localFolders.length })
+      }
+    })()
+    return () => { cancelled = true }
   }, [user])
 
   // Debounce search 300 ms so we don't re-filter on every keystroke
@@ -215,9 +238,8 @@ export function Dashboard() {
   }
 
   const handleAddLink = async (linkData: Partial<Link>) => {
-    if (!user) return
     try {
-      await addLink(user.is_premium ?? false, user.id, linkData)
+      await addLink(isPremium, userId, linkData)
       setShowAddModal(false)
       toast.success('Saved!')
       await loadData()
@@ -229,9 +251,8 @@ export function Dashboard() {
   }
 
   const handleDeleteLink = async (id: string) => {
-    if (!user) return
     try {
-      await deleteLink(user.is_premium ?? false, user.id, id)
+      await deleteLink(isPremium, userId, id)
       setLinks(prev => prev.filter(link => link.id !== id))
       toast.success('Link removed')
     } catch (error) {
@@ -245,6 +266,10 @@ export function Dashboard() {
   }
 
   const handleBuryClick = () => {
+    if (!user) {
+      setPersistGate('bury')
+      return
+    }
     if (!buryPassword) {
       // No password set yet — require them to create one first
       setNewBuryPassword('')
@@ -304,9 +329,8 @@ export function Dashboard() {
   }
 
   const handleEditLink = async (id: string, updates: Partial<import('@/types').Link>) => {
-    if (!user) return
     try {
-      await updateLink(user.is_premium ?? false, user.id, id, updates)
+      await updateLink(isPremium, userId, id, updates)
       setLinks(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l))
       setEditingLink(null)
       toast.success('Updated!')
@@ -316,10 +340,10 @@ export function Dashboard() {
   }
 
   const handleCreateFolder = async () => {
-    if (!user || !newFolderName.trim()) return
+    if (!newFolderName.trim()) return
     setCreatingFolder(true)
     try {
-      await addFolder(user.is_premium ?? false, user.id, {
+      await addFolder(isPremium, userId, {
         name: newFolderName.trim(),
         position: folders.length,
       })
@@ -370,9 +394,10 @@ export function Dashboard() {
       <Header
         email={user?.email}
         isPremium={user?.is_premium}
-        onUpgrade={() => window.open(PURCHASE_URL, '_blank', 'noopener,noreferrer')}
-        onSettings={() => setShowSettings(true)}
-        onSignOut={signOut}
+        onUpgrade={user ? () => window.open(PURCHASE_URL, '_blank', 'noopener,noreferrer') : undefined}
+        onSettings={user ? () => setShowSettings(true) : undefined}
+        onSignOut={user ? signOut : undefined}
+        onSignIn={!user ? () => setShowAuth('signin') : undefined}
         onBack={activeTab !== 'menu' ? () => setActiveTab('menu') : undefined}
       />
 
@@ -380,9 +405,19 @@ export function Dashboard() {
         {activeTab === 'share' ? (
           <ShareView onBack={() => setActiveTab('menu')} />
         ) : activeTab === 'borrow' ? (
-          <BorrowView onBack={() => setActiveTab('menu')} onShowAdd={(mode) => openAddModal(mode)} />
+          <BorrowView
+            onBack={() => setActiveTab('menu')}
+            onShowAdd={(mode) => openAddModal(mode)}
+            onRequireAccount={(reason) => setPersistGate(reason)}
+          />
         ) : activeTab === 'menu' ? (
           <div className="max-w-md mx-auto px-4 py-8 pb-16 space-y-6">
+            {!user && (
+              <div className="text-center text-sm text-gray-600 bg-white/80 border-2 border-dashed border-pink-300 rounded-xl py-3 px-4 leading-relaxed">
+                Try Keep and Borrow on this device — no account yet.
+                Share, Bury, and saving a Dream Keeper need a sign-in, or that data will not persist.
+              </div>
+            )}
             <button
               onClick={() => setActiveTab('keep')}
               className="w-full bg-yellow-100 border-4 border-black p-6 flex items-center justify-between text-3xl font-bold text-gray-900 hover:bg-yellow-200 transition shadow-lg hover:shadow-xl"
@@ -412,7 +447,7 @@ export function Dashboard() {
             </button>
 
             <button
-              onClick={() => setActiveTab('share')}
+              onClick={() => user ? setActiveTab('share') : setPersistGate('share')}
               className="w-full bg-pink-300 border-4 border-black p-6 flex items-center justify-between text-3xl font-bold text-gray-900 hover:bg-pink-400 transition shadow-lg hover:shadow-xl"
               style={{ fontStyle: 'italic' }}
             >
@@ -742,8 +777,8 @@ export function Dashboard() {
       {showAddModal && (
         <AddLinkModal
           folders={folders}
-          isPremium={user?.is_premium ?? false}
-          userId={user?.id ?? ''}
+          isPremium={isPremium}
+          userId={userId || 'guest'}
           initialMode={addModalMode}
           initialUrl={pastedUrl}
           initialFile={pastedFile}
@@ -769,11 +804,31 @@ export function Dashboard() {
         <ExportPanel onClose={() => setShowExport(false)} />
       )}
 
-      {!user?.is_premium && (
-        <TickerTapeAd onUpgradeClick={() => setShowSettings(true)} />
+      {!isPremium && (
+        <TickerTapeAd onUpgradeClick={() => user ? setShowSettings(true) : setShowAuth('signup')} />
       )}
 
-      {editingLink && user && (
+      {persistGate && (
+        <GuestPersistModal reason={persistGate} onClose={() => setPersistGate(null)} />
+      )}
+
+      {showAuth && (
+        <AuthModal initialMode={showAuth} onClose={() => setShowAuth(null)} />
+      )}
+
+      {migrationCounts && user && (
+        <CloudMigrationModal
+          userId={user.id}
+          localLinkCount={migrationCounts.links}
+          localFolderCount={migrationCounts.folders}
+          onDone={() => {
+            setMigrationCounts(null)
+            loadData()
+          }}
+        />
+      )}
+
+      {editingLink && (
         <EditLinkModal
           link={editingLink}
           folders={folders}

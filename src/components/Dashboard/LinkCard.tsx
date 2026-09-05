@@ -25,9 +25,10 @@ export function LinkCard({ link, onDelete, onEdit, onCopySuccess, extraMenu }: L
 
   // Resolve OPFS file on this device
   useEffect(() => {
-    if (!isLocalFile || !user) return
+    if (!isLocalFile) return
+    const opfsUserId = user?.id || 'guest'
     let revoked = false
-    opfsStore.getFileUrl(user.id, link.opfs_path!).then((url) => {
+    opfsStore.getFileUrl(opfsUserId, link.opfs_path!).then((url) => {
       if (revoked) { if (url) URL.revokeObjectURL(url); return }
       setOpfsBlobUrl(url)
       setOpfsAvailable(url !== null)
@@ -39,9 +40,8 @@ export function LinkCard({ link, onDelete, onEdit, onCopySuccess, extraMenu }: L
   }, [isLocalFile, link.opfs_path, user])
 
   const handleToggleFavorite = async () => {
-    if (!user) return
     try {
-      await updateLink(user.is_premium ?? false, user.id, link.id, { is_favorite: !isFavorite })
+      await updateLink(user?.is_premium ?? false, user?.id ?? '', link.id, { is_favorite: !isFavorite })
       setIsFavorite(!isFavorite)
     } catch {
       // Non-fatal — reverts on next load
@@ -59,8 +59,8 @@ export function LinkCard({ link, onDelete, onEdit, onCopySuccess, extraMenu }: L
     if (confirm('Are you sure you want to delete this?')) {
       setIsDeleting(true)
       // Remove OPFS file alongside DB record
-      if (isLocalFile && user) {
-        opfsStore.deleteFile(user.id, link.opfs_path!).catch(() => {})
+      if (isLocalFile) {
+        opfsStore.deleteFile(user?.id || 'guest', link.opfs_path!).catch(() => {})
       }
       onDelete()
     }
@@ -71,8 +71,8 @@ export function LinkCard({ link, onDelete, onEdit, onCopySuccess, extraMenu }: L
   }
 
   const handleDownloadLocalFile = async () => {
-    if (!user || !link.opfs_path) return
-    const file = await opfsStore.getFile(user.id, link.opfs_path)
+    if (!link.opfs_path) return
+    const file = await opfsStore.getFile(user?.id || 'guest', link.opfs_path)
     if (file) downloadFile(file, link.title || file.name)
   }
 

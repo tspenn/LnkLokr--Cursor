@@ -25,9 +25,10 @@ interface BorrowItem {
 interface BorrowViewProps {
   onBack?: () => void
   onShowAdd?: (mode: 'link' | 'image' | 'file') => void
+  onRequireAccount?: (reason: 'share' | 'bury') => void
 }
 
-export function BorrowView({ onShowAdd }: BorrowViewProps) {
+export function BorrowView({ onShowAdd, onRequireAccount }: BorrowViewProps) {
   const { user } = useAuth()
   const toast = useToast()
   const [filter, setFilter] = useState<FilterType>('all')
@@ -42,8 +43,8 @@ export function BorrowView({ onShowAdd }: BorrowViewProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    if (!user) return
     loadData()
+    if (!user) return
 
     const linksChannel = supabase
       .channel(`borrow-links-${user.id}`)
@@ -70,12 +71,28 @@ export function BorrowView({ onShowAdd }: BorrowViewProps) {
   }, [user])
 
   const loadData = async () => {
-    if (!user) return
-    const isPremium = user.is_premium ?? false
+    const isPremium = user?.is_premium ?? false
+    const userId = user?.id ?? ''
 
     try {
-      // Links: route through dataService (local for free, cloud for paid)
-      const borrowedLinks = await getLinksByStatus(isPremium, user.id, 'borrow')
+      const borrowedLinks = await getLinksByStatus(isPremium, userId, 'borrow')
+
+      if (!user) {
+        const linkItems: BorrowItem[] = borrowedLinks.map((link: Link) => ({
+          id: link.id,
+          type: 'link' as const,
+          title: link.title,
+          url: link.url,
+          thumbnail: link.thumbnail_url || null,
+          icon: null,
+          content_type: link.content_type || 'url',
+          created_at: link.created_at,
+          category_id: link.category_id ?? null,
+        }))
+        setItems(linkItems)
+        setCategories([])
+        return
+      }
 
       // saved_items are cloud-only (premium); categories available to all users
       const [savedRes, categoriesRes] = await Promise.all([
@@ -155,11 +172,15 @@ export function BorrowView({ onShowAdd }: BorrowViewProps) {
   }
 
   const handleMoveItem = async (itemId: string, itemType: 'link' | 'saved_item', newStatus: string) => {
-    if (!user) return
-    const isPremium = user.is_premium ?? false
+    if ((newStatus === 'share' || newStatus === 'bury') && !user) {
+      onRequireAccount?.(newStatus)
+      return
+    }
+    const isPremium = user?.is_premium ?? false
+    const userId = user?.id ?? ''
     try {
       if (itemType === 'link') {
-        await updateLink(isPremium, user.id, itemId, { status: newStatus as Link['status'] })
+        await updateLink(isPremium, userId, itemId, { status: newStatus as Link['status'] })
       } else {
         const { error } = await supabase.from('saved_items').update({ status: newStatus }).eq('id', itemId)
         if (error) throw error
@@ -173,11 +194,11 @@ export function BorrowView({ onShowAdd }: BorrowViewProps) {
   }
 
   const handleDeleteItem = async (itemId: string, itemType: 'link' | 'saved_item') => {
-    if (!user) return
-    const isPremium = user.is_premium ?? false
+    const isPremium = user?.is_premium ?? false
+    const userId = user?.id ?? ''
     try {
       if (itemType === 'link') {
-        await deleteLink(isPremium, user.id, itemId)
+        await deleteLink(isPremium, userId, itemId)
       } else {
         const { error } = await supabase.from('saved_items').delete().eq('id', itemId)
         if (error) throw error

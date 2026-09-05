@@ -1,21 +1,30 @@
 /**
- * dataService — routes all data operations to Supabase for every tier.
+ * dataService — routes data by session.
  *
- * Free tier  → Supabase (link metadata only; binary uploads blocked by RLS)
- * Paid tier  → Supabase (link metadata + binary file uploads)
- *
- * The isPremium parameter is retained on each function so callers do not need
- * to change. It is used only where behaviour genuinely differs by tier (e.g.
- * migrateLocalToCloud, which is a one-time upgrade path for legacy local data).
+ * Guest (no userId) → IndexedDB on this device (try-before-signup)
+ * Signed-in free    → Supabase (link metadata only; binary uploads blocked by RLS)
+ * Signed-in paid    → Supabase (link metadata + binary file uploads)
  */
 
 import { localStore } from './localStore'
 import { supabase } from './supabase'
 import type { Link, Folder } from '@/types'
 
+function isGuest(userId: string) {
+  return !userId
+}
+
+async function localReady() {
+  await localStore.init()
+}
+
 // ─── Links ────────────────────────────────────────────────────────────────────
 
 export async function getLinks(_isPremium: boolean, userId: string): Promise<Link[]> {
+  if (isGuest(userId)) {
+    await localReady()
+    return localStore.getLinks()
+  }
   const { data, error } = await supabase
     .from('links')
     .select('*')
@@ -30,6 +39,11 @@ export async function getLinksByStatus(
   userId: string,
   status: 'keep' | 'borrow' | 'share' | 'bury',
 ): Promise<Link[]> {
+  if (isGuest(userId)) {
+    await localReady()
+    const all = await localStore.getLinks()
+    return all.filter(l => (l.status || 'keep') === status)
+  }
   const { data, error } = await supabase
     .from('links')
     .select('*')
@@ -45,6 +59,15 @@ export async function addLink(
   userId: string,
   linkData: Partial<Link>,
 ): Promise<void> {
+  if (isGuest(userId)) {
+    await localReady()
+    await localStore.addLink({
+      url: linkData.url ?? '',
+      title: linkData.title ?? 'Untitled',
+      ...linkData,
+    } as Omit<Link, 'id' | 'created_at'>)
+    return
+  }
   const { error } = await supabase.from('links').insert({ ...linkData, user_id: userId })
   if (error) throw error
 }
@@ -55,6 +78,11 @@ export async function updateLink(
   id: string,
   updates: Partial<Link>,
 ): Promise<void> {
+  if (isGuest(userId)) {
+    await localReady()
+    await localStore.updateLink(id, updates)
+    return
+  }
   const { error } = await supabase
     .from('links')
     .update({ ...updates, updated_at: new Date().toISOString() })
@@ -68,6 +96,11 @@ export async function deleteLink(
   userId: string,
   id: string,
 ): Promise<void> {
+  if (isGuest(userId)) {
+    await localReady()
+    await localStore.deleteLink(id)
+    return
+  }
   const { error } = await supabase.from('links').delete().eq('id', id).eq('user_id', userId)
   if (error) throw error
 }
@@ -75,6 +108,10 @@ export async function deleteLink(
 // ─── Folders ──────────────────────────────────────────────────────────────────
 
 export async function getFolders(_isPremium: boolean, userId: string): Promise<Folder[]> {
+  if (isGuest(userId)) {
+    await localReady()
+    return localStore.getFolders()
+  }
   const { data, error } = await supabase
     .from('folders')
     .select('*')
@@ -89,6 +126,14 @@ export async function addFolder(
   userId: string,
   folderData: Partial<Folder>,
 ): Promise<void> {
+  if (isGuest(userId)) {
+    await localReady()
+    await localStore.addFolder({
+      name: folderData.name ?? 'Folder',
+      ...folderData,
+    } as Omit<Folder, 'id' | 'created_at'>)
+    return
+  }
   const { error } = await supabase.from('folders').insert({ ...folderData, user_id: userId })
   if (error) throw error
 }
@@ -98,6 +143,11 @@ export async function deleteFolder(
   userId: string,
   id: string,
 ): Promise<void> {
+  if (isGuest(userId)) {
+    await localReady()
+    await localStore.deleteFolder(id)
+    return
+  }
   const { error } = await supabase.from('folders').delete().eq('id', id).eq('user_id', userId)
   if (error) throw error
 }

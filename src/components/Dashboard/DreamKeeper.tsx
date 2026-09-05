@@ -2,6 +2,8 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Download, Type, Image as ImageIcon, Trash2, Save } from 'lucide-react'
 import { Header } from '../shared/Header'
+import { useAuth } from '@/context/AuthContext'
+import { GuestPersistModal } from '../Landing/GuestPersistModal'
 
 interface BoardItem {
   id: string
@@ -57,6 +59,8 @@ function generateId() {
 export function DreamKeeper() {
   const { id: boardId } = useParams()
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const [persistGate, setPersistGate] = useState(false)
   const canvasRef = useRef<HTMLDivElement>(null)
   const [title, setTitle] = useState('My Dream Keeper')
   const [items, setItems] = useState<BoardItem[]>([])
@@ -85,16 +89,16 @@ export function DreamKeeper() {
     setAllBoards(listBoards())
   }, [boardId, navigate])
 
-  // Auto-save 1 second after any change
+  // Auto-save 1 second after any change — signed-in only so guests are not misled
   const triggerAutoSave = useCallback(() => {
-    if (!boardId) return
+    if (!user || !boardId) return
     if (autoSaveRef.current) clearTimeout(autoSaveRef.current)
     autoSaveRef.current = setTimeout(() => {
       saveBoard({ id: boardId, title, items, updatedAt: new Date().toISOString() })
       setSavedAt(new Date().toISOString())
       setAllBoards(listBoards())
     }, 1000)
-  }, [boardId, title, items])
+  }, [user, boardId, title, items])
 
   useEffect(() => {
     if (!boardId) return
@@ -331,6 +335,11 @@ export function DreamKeeper() {
       onMouseUp={onMouseUp}
     >
       <Header tall onBack={() => navigate('/')} />
+      {!user && (
+        <div className="flex-none text-center text-xs sm:text-sm text-amber-900 bg-amber-50 border-b-2 border-amber-200 px-4 py-2">
+          Play with the board. Sign in to save it — without an account, Dream Keeper will not persist.
+        </div>
+      )}
 
       {/* Board title + tools */}
       <div className="flex-none bg-white border-b-2 border-green-200 px-4 sm:px-6 py-3 flex items-center justify-between gap-3 flex-wrap shadow-sm">
@@ -355,6 +364,7 @@ export function DreamKeeper() {
         </div>
 
         <div className="flex gap-2 flex-wrap items-center">
+          {user && (
           <div className="relative">
             <button
               onClick={() => setShowBoardList(v => !v)}
@@ -381,6 +391,7 @@ export function DreamKeeper() {
               </div>
             )}
           </div>
+          )}
 
           <button onClick={addText} className="flex items-center gap-1.5 bg-purple-100 hover:bg-purple-200 border-2 border-black text-gray-800 px-3 py-1.5 rounded-lg transition text-sm font-medium">
             <Type size={16} /> Text
@@ -391,6 +402,15 @@ export function DreamKeeper() {
           {selectedId && (
             <button onClick={deleteSelected} className="flex items-center gap-1.5 bg-red-100 hover:bg-red-200 border-2 border-red-400 text-red-700 px-3 py-1.5 rounded-lg transition text-sm font-medium">
               <Trash2 size={16} /> Delete
+            </button>
+          )}
+          {!user && (
+            <button
+              onClick={() => setPersistGate(true)}
+              className="flex items-center gap-1.5 bg-pink-200 hover:bg-pink-300 border-2 border-black text-gray-900 px-4 py-1.5 rounded-lg transition text-sm font-bold"
+            >
+              <Save size={16} />
+              Save board
             </button>
           )}
           <button
@@ -490,8 +510,14 @@ export function DreamKeeper() {
 
       {/* Footer hint */}
       <div className="flex-none py-2 text-center text-green-600/50 text-xs border-t border-green-100 bg-white/60">
-        Drag items to arrange · Double-click text to edit · Right-click to paste · Boards auto-save to this device
+        {user
+          ? 'Drag items to arrange · Double-click text to edit · Right-click to paste · Boards auto-save to this device'
+          : 'Drag items to arrange · Double-click text to edit · Right-click to paste · Sign in to save the board'}
       </div>
+
+      {persistGate && (
+        <GuestPersistModal reason="dreamkeeper" onClose={() => setPersistGate(false)} />
+      )}
     </div>
   )
 }

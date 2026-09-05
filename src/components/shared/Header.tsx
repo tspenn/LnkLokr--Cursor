@@ -9,6 +9,7 @@ interface HeaderProps {
   onSettings?: () => void
   onSignOut?: () => void
   onUpgrade?: () => void
+  onSignIn?: () => void
   onBack?: () => void
   /** Compact single 100px bar with Menu inline (e.g. Dream Keeper) */
   tall?: boolean
@@ -35,6 +36,7 @@ export function Header({
   onSettings,
   onSignOut,
   onUpgrade,
+  onSignIn,
   onBack,
   tall = false,
 }: HeaderProps) {
@@ -58,7 +60,7 @@ export function Header({
     )
   }
 
-  const showToolbar = Boolean(email || onBack || onSettings || onSignOut || onUpgrade)
+  const showToolbar = Boolean(email || onBack || onSettings || onSignOut || onUpgrade || onSignIn)
 
   return (
     <header className="border-b-4 border-black shadow-md shrink-0">
@@ -82,6 +84,15 @@ export function Header({
               )}
             </div>
             <div className="flex items-center gap-2 sm:gap-3">
+              {onSignIn && !email && (
+                <button
+                  type="button"
+                  onClick={onSignIn}
+                  className="px-4 py-2 bg-gradient-to-r from-pink-400 to-orange-300 hover:from-pink-500 hover:to-orange-400 text-white border-2 border-pink-400 rounded-full text-sm font-bold transition shadow-sm"
+                >
+                  Sign in
+                </button>
+              )}
               {isPremium ? (
                 <div className="flex items-center gap-1.5 px-4 py-2 bg-amber-100 border-2 border-amber-400 text-amber-900 rounded-full text-sm font-bold">
                   <Icon name="crown" size={18} />

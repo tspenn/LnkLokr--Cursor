@@ -4,10 +4,11 @@ import { Icon } from '../shared/Icon'
 
 interface AuthModalProps {
   initialMode?: 'signin' | 'signup'
+  persistWarning?: { title: string; body: string }
   onClose: () => void
 }
 
-export function AuthModal({ initialMode = 'signin', onClose }: AuthModalProps) {
+export function AuthModal({ initialMode = 'signin', persistWarning, onClose }: AuthModalProps) {
   const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>(initialMode)
   const { signIn, signUp, resetPassword, error, isAuthenticated, confirmationPending, clearConfirmationPending } = useAuth()
 
@@ -126,13 +127,21 @@ export function AuthModal({ initialMode = 'signin', onClose }: AuthModalProps) {
 
         {/* Heading */}
         <h2 className="text-2xl font-bold text-gray-900 text-center mb-1">
-          {mode === 'forgot' ? 'Reset your password' : mode === 'signup' ? 'Create your account' : 'Welcome back'}
+          {persistWarning && mode !== 'forgot'
+            ? persistWarning.title
+            : mode === 'forgot' ? 'Reset your password' : mode === 'signup' ? 'Create your account' : 'Welcome back'}
         </h2>
-        <p className="text-xs text-gray-500 text-center mb-6">
-          {mode === 'forgot'
-            ? "Enter your email and we'll send a reset link."
-            : 'One Skyland Reach account for LnkLokr, FRIDAY Canvas, Go Shop & more'}
-        </p>
+        {persistWarning && mode !== 'forgot' ? (
+          <p className="text-sm text-amber-900 text-center mb-5 leading-relaxed bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+            {persistWarning.body}
+          </p>
+        ) : (
+          <p className="text-xs text-gray-500 text-center mb-6">
+            {mode === 'forgot'
+              ? "Enter your email and we'll send a reset link."
+              : 'One Skyland Reach account for LnkLokr, FRIDAY Canvas, Go Shop & more'}
+          </p>
+        )}
 
         {/* Reset sent */}
         {resetSent && (
