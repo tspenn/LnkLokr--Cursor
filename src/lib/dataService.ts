@@ -54,6 +54,26 @@ export async function getLinksByStatus(
   return data ?? []
 }
 
+const LINK_INSERT_KEYS = [
+  'url',
+  'title',
+  'description',
+  'folder_id',
+  'tags',
+  'thumbnail_url',
+  'icon',
+  'notes',
+  'is_favorite',
+  'status',
+  'category_id',
+  'content_type',
+  'opfs_path',
+  'listing_price',
+  'listing_currency',
+  'listing_colors',
+  'listing_options',
+] as const
+
 export async function addLink(
   _isPremium: boolean,
   userId: string,
@@ -68,7 +88,12 @@ export async function addLink(
     } as Omit<Link, 'id' | 'created_at'>)
     return
   }
-  const { error } = await supabase.from('links').insert({ ...linkData, user_id: userId })
+  const row: Record<string, unknown> = { user_id: userId }
+  for (const key of LINK_INSERT_KEYS) {
+    if (linkData[key] !== undefined) row[key] = linkData[key]
+  }
+  if (row.folder_id === '') row.folder_id = null
+  const { error } = await supabase.from('links').insert(row)
   if (error) throw error
 }
 
@@ -107,15 +132,21 @@ export async function deleteLink(
 
 // ─── Folders ──────────────────────────────────────────────────────────────────
 
-export async function getFolders(_isPremium: boolean, userId: string): Promise<Folder[]> {
+export async function getFolders(
+  _isPremium: boolean,
+  userId: string,
+  scope: 'keep' | 'borrow' | 'share' | 'bury' = 'keep',
+): Promise<Folder[]> {
   if (isGuest(userId)) {
     await localReady()
-    return localStore.getFolders()
+    const all = await localStore.getFolders()
+    return all.filter(f => (f.scope || 'keep') === scope)
   }
   const { data, error } = await supabase
     .from('folders')
     .select('*')
     .eq('user_id', userId)
+    .eq('scope', scope)
     .order('position')
   if (error) throw error
   return data ?? []
@@ -125,16 +156,39 @@ export async function addFolder(
   _isPremium: boolean,
   userId: string,
   folderData: Partial<Folder>,
-): Promise<void> {
+): Promise<Folder> {
   if (isGuest(userId)) {
     await localReady()
-    await localStore.addFolder({
+    return localStore.addFolder({
       name: folderData.name ?? 'Folder',
       ...folderData,
     } as Omit<Folder, 'id' | 'created_at'>)
+  }
+  const { data, error } = await supabase
+    .from('folders')
+    .insert({ ...folderData, user_id: userId })
+    .select()
+    .single()
+  if (error) throw error
+  return data as Folder
+}
+
+export async function updateFolder(
+  _isPremium: boolean,
+  userId: string,
+  id: string,
+  updates: Partial<Folder>,
+): Promise<void> {
+  if (isGuest(userId)) {
+    await localReady()
+    await localStore.updateFolder(id, updates)
     return
   }
-  const { error } = await supabase.from('folders').insert({ ...folderData, user_id: userId })
+  const { error } = await supabase
+    .from('folders')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .eq('user_id', userId)
   if (error) throw error
 }
 

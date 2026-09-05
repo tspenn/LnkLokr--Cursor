@@ -12,6 +12,7 @@ import {
   markAwaitingPasswordReset,
   markPasswordRecoveryPending,
 } from '@/lib/authUrl'
+import { overlayLnklokrSubscription } from '@/lib/lnklokrSubscription'
 import { normalizeUser } from '@/lib/normalizeUser'
 import { LNKLOKR_SIGNUP_APP } from '@/lib/skylandTiers'
 import { User, AuthState } from '@/types'
@@ -25,7 +26,7 @@ async function fetchOrCreateUserProfile(authUser: SupabaseUser): Promise<User | 
     .maybeSingle()
 
   if (userData) {
-    return normalizeUser(userData as Record<string, unknown>)
+    return overlayLnklokrSubscription(normalizeUser(userData as Record<string, unknown>))
   }
 
   const { data: created, error } = await supabase
@@ -51,27 +52,28 @@ async function fetchOrCreateUserProfile(authUser: SupabaseUser): Promise<User | 
         .select('*')
         .eq('id', authUser.id)
         .maybeSingle()
-      if (retry) return normalizeUser(retry as Record<string, unknown>)
+      if (retry) {
+        return overlayLnklokrSubscription(normalizeUser(retry as Record<string, unknown>))
+      }
     }
 
     // Fall back to a minimal user object so sign-in isn't silently blocked
-    return normalizeUser({
+    return overlayLnklokrSubscription(normalizeUser({
       id: authUser.id,
       email: authUser.email ?? '',
       is_premium: false,
       subscription_tier: 'free',
       premium_until: null,
-    })
+    }))
   }
 
-  return normalizeUser(created as Record<string, unknown>)
+  return overlayLnklokrSubscription(normalizeUser(created as Record<string, unknown>))
 }
 
 interface AuthContextType extends AuthState {
   clearConfirmationPending: () => void
   signUp: (email: string, password: string) => Promise<void>
   signIn: (email: string, password: string) => Promise<void>
-  signInWithGoogle: () => Promise<void>
   signOut: () => Promise<void>
   resetPassword: (email: string) => Promise<void>
   updatePassword: (password: string) => Promise<void>
@@ -367,25 +369,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const signInWithGoogle = async () => {
-    try {
-      setAuthState(prev => ({ ...prev, error: null }))
-
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: getAuthRedirectUrl('/'),
-        },
-      })
-
-      if (error) throw error
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Google sign in failed'
-      setAuthState(prev => ({ ...prev, error: message }))
-      throw error
-    }
-  }
-
   const resetPassword = async (email: string) => {
     try {
       setAuthState(prev => ({ ...prev, error: null }))
@@ -478,7 +461,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         clearConfirmationPending,
         signUp,
         signIn,
-        signInWithGoogle,
         signOut,
         resetPassword,
         updatePassword,

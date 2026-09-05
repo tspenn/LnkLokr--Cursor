@@ -3,6 +3,8 @@ import { Folder, Link } from '@/types'
 import { Icon } from '../shared/Icon'
 import { supabase } from '@/lib/supabase'
 import { opfsStore, generateThumbnail } from '@/lib/opfsStore'
+import { addFolder, getFolders } from '@/lib/dataService'
+import type { FolderScope } from './FolderBar'
 
 type ContentMode = 'link' | 'image' | 'file'
 
@@ -23,6 +25,7 @@ interface AddLinkModalProps {
   isPremium: boolean
   userId: string
   currentStatus?: 'keep' | 'borrow' | 'share' | 'bury'
+  folderScope?: FolderScope
   initialMode?: ContentMode
   initialUrl?: string
   initialFile?: File
@@ -35,6 +38,7 @@ export function AddLinkModal({
   isPremium,
   userId,
   currentStatus = 'keep',
+  folderScope = 'keep',
   initialMode = 'link',
   initialUrl,
   initialFile,
@@ -52,6 +56,20 @@ export function AddLinkModal({
   const [tagInput, setTagInput] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [allFolders, setAllFolders] = useState<Folder[]>(folders)
+  const [showNewFolderInput, setShowNewFolderInput] = useState(false)
+  const [newFolderName, setNewFolderName] = useState('')
+  const [creatingFolder, setCreatingFolder] = useState(false)
+
+  // For non-Keep scopes, load the scoped folder list on mount
+  useEffect(() => {
+    if (folderScope !== 'keep') {
+      getFolders(true, userId, folderScope)
+        .then(setAllFolders)
+        .catch(() => {})
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [isScraping, setIsScraping] = useState(false)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -211,17 +229,47 @@ export function AddLinkModal({
   const handleSubmitLink = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    if (!formData.url || !formData.title) { setError('URL and title are required'); return }
-    try { new URL(formData.url) } catch { setError('Invalid URL'); return }
+    if (!formData.url) { setError('URL is required'); return }
+    let parsed: URL
+    try { parsed = new URL(formData.url) } catch { setError('Invalid URL'); return }
+    const title = formData.title.trim() || parsed.hostname.replace(/^www\./, '')
     setIsLoading(true)
     try {
       let thumbnail_url: string | null = null
       let icon: string | null = null
+      let listing_price: string | null = null
+      let listing_currency: string | null = null
+      let listing_colors: string | null = null
+      let listing_options: string | null = null
+      let scrapedDescription: string | null = null
       try {
         const res = await fetch(`/api/scrape?url=${encodeURIComponent(formData.url)}`)
-        if (res.ok) { const m = await res.json(); thumbnail_url = m.thumbnail_url ?? null; icon = m.icon ?? null }
+        if (res.ok) {
+          const m = await res.json()
+          thumbnail_url = m.thumbnail_url ?? null
+          icon = m.icon ?? null
+          listing_price = m.listing_price ?? null
+          listing_currency = m.listing_currency ?? null
+          listing_colors = m.listing_colors ?? null
+          listing_options = m.listing_options ?? null
+          scrapedDescription = m.listing_description || m.description || null
+        }
       } catch { /* non-fatal */ }
-      await onAdd({ ...formData, thumbnail_url, icon, content_type: 'url', is_favorite: false, status: currentStatus })
+      await onAdd({
+        ...formData,
+        title,
+        description: formData.description.trim() || scrapedDescription,
+        folder_id: formData.folder_id || null,
+        thumbnail_url,
+        icon,
+        listing_price,
+        listing_currency,
+        listing_colors,
+        listing_options,
+        content_type: 'url',
+        is_favorite: false,
+        status: currentStatus,
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save link')
     } finally { setIsLoading(false) }
@@ -311,6 +359,27 @@ export function AddLinkModal({
     } finally { setIsLoading(false) }
   }
 
+  const handleCreateFolder = async () => {
+    const name = newFolderName.trim()
+    if (!name) return
+    setCreatingFolder(true)
+    try {
+      const created = await addFolder(false, userId, {
+        name,
+        position: allFolders.length,
+        scope: folderScope,
+      })
+      setAllFolders(prev => [...prev, created])
+      setFormData(prev => ({ ...prev, folder_id: created.id }))
+      setNewFolderName('')
+      setShowNewFolderInput(false)
+    } catch {
+      setError('Failed to create folder')
+    } finally {
+      setCreatingFolder(false)
+    }
+  }
+
   const handleAddTag = () => {
     if (tagInput.trim() && !formData.tags.includes(tagInput.trim())) {
       setFormData(prev => ({ ...prev, tags: [...prev.tags, tagInput.trim()] }))
@@ -362,18 +431,63 @@ export function AddLinkModal({
       </div>
 
       <div className="space-y-2">
-        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">Folder</label>
-        <select
-          value={formData.folder_id || ''}
-          onChange={(e) => setFormData(prev => ({ ...prev, folder_id: e.target.value || null }))}
-          disabled={isLoading}
-          className="input-field"
-        >
-          <option value="">No folder</option>
-          {folders.map(f => (
-            <option key={f.id} value={f.id}>{f.icon} {f.name}</option>
-          ))}
-        </select>
+        <div className="flex items-center justify-between">
+          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">Folder</label>
+          {!showNewFolderInput && (
+            <button
+              type="button"
+              onClick={() => setShowNewFolderInput(true)}
+              className="flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 font-medium"
+            >
+              <Icon name="plus" size={13} /> New folder
+            </button>
+          )}
+        </div>
+
+        {showNewFolderInput ? (
+          <div className="flex gap-2">
+            <input
+              autoFocus
+              type="text"
+              value={newFolderName}
+              onChange={e => setNewFolderName(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') { e.preventDefault(); handleCreateFolder() }
+                if (e.key === 'Escape') { setShowNewFolderInput(false); setNewFolderName('') }
+              }}
+              placeholder="Folder name"
+              disabled={creatingFolder}
+              className="input-field flex-1 text-sm"
+            />
+            <button
+              type="button"
+              onClick={handleCreateFolder}
+              disabled={creatingFolder || !newFolderName.trim()}
+              className="px-3 py-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition"
+            >
+              {creatingFolder ? '…' : 'Create'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowNewFolderInput(false); setNewFolderName('') }}
+              className="px-2 py-2 text-gray-500 hover:text-gray-700 rounded-lg text-sm"
+            >
+              ✕
+            </button>
+          </div>
+        ) : (
+          <select
+            value={formData.folder_id || ''}
+            onChange={(e) => setFormData(prev => ({ ...prev, folder_id: e.target.value || null }))}
+            disabled={isLoading}
+            className="input-field"
+          >
+            <option value="">No folder</option>
+            {allFolders.map(f => (
+              <option key={f.id} value={f.id}>{f.icon} {f.name}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       {mode === 'link' && (

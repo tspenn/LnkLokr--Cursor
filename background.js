@@ -88,7 +88,7 @@ async function scrapeMetadata(url) {
 }
 
 // ─── Save a webpage/URL link directly to the links table ─────────────────────
-async function saveWebpageLink({ url, title, description, tabTitle, status = 'keep' }) {
+async function saveWebpageLink({ url, title, description, tabTitle, status = 'keep', folderId = null }) {
   try {
     const user = await getAuthenticatedUser()
 
@@ -103,9 +103,14 @@ async function saveWebpageLink({ url, title, description, tabTitle, status = 'ke
       thumbnail_url: meta?.thumbnail_url || null,
       icon: meta?.icon || null,
       status,
+      folder_id: folderId || null,
       content_type: 'url',
       tags: [],
       is_favorite: false,
+      listing_price: meta?.listing_price || null,
+      listing_currency: meta?.listing_currency || null,
+      listing_colors: meta?.listing_colors || null,
+      listing_options: meta?.listing_options || null,
     })
 
     if (error) throw new Error(error.message)
@@ -153,6 +158,7 @@ async function saveFileToLnklokr(blob, metadata) {
         description: metadata.alt || null,
         thumbnail_url: contentType === 'image' ? publicUrl : null,
         status,
+        folder_id: metadata.folderId || null,
         content_type: contentType,
         tags: [],
         is_favorite: false,
@@ -173,6 +179,7 @@ async function saveFileToLnklokr(blob, metadata) {
         description: metadata.alt || null,
         thumbnail_url: contentType === 'image' ? metadata.src : null,
         status,
+        folder_id: metadata.folderId || null,
         content_type: contentType,
         tags: [],
         is_favorite: false,
@@ -189,34 +196,93 @@ async function saveFileToLnklokr(blob, metadata) {
 const STATUSES = ['keep', 'borrow', 'share', 'bury']
 const STATUS_LABELS = { keep: '📦 Keep', borrow: '🔄 Borrow', share: '📤 Share', bury: '🔒 Bury' }
 
-chrome.runtime.onInstalled.addListener(() => {
-  // Parent items (shown on right-click)
+function parseMenuId(menuId) {
+  const match = String(menuId).match(/^(image|link|selection)-(keep|borrow|share|bury)(?:-(none|f-(.+)))?$/)
+  if (!match) return null
+  return { type: match[1], status: match[2], folderId: match[4] || null }
+}
+
+async function loadFoldersByScope() {
+  const foldersByScope = { keep: [], borrow: [], share: [], bury: [] }
+  try {
+    const user = await getAuthenticatedUser()
+    const { data } = await supabase
+      .from('folders')
+      .select('id, name, scope')
+      .eq('user_id', user.id)
+      .order('position')
+    for (const folder of data ?? []) {
+      const scope = STATUSES.includes(folder.scope) ? folder.scope : 'keep'
+      foldersByScope[scope].push(folder)
+    }
+  } catch {
+    // Not signed in — menus still work without folders
+  }
+  return foldersByScope
+}
+
+async function rebuildContextMenus() {
+  await chrome.contextMenus.removeAll()
+
   chrome.contextMenus.create({ id: 'save-image', title: 'Save Image to LnkLokr…', contexts: ['image'] })
   chrome.contextMenus.create({ id: 'save-link', title: 'Save Link to LnkLokr…', contexts: ['link'] })
   chrome.contextMenus.create({ id: 'save-selection', title: 'Save Selection to LnkLokr…', contexts: ['selection'] })
 
-  // Sub-items — destination selector
+  const foldersByScope = await loadFoldersByScope()
+
   for (const type of ['image', 'link', 'selection']) {
+    const contexts = [type === 'image' ? 'image' : type === 'link' ? 'link' : 'selection']
     for (const status of STATUSES) {
+      const parentId = `${type}-${status}`
       chrome.contextMenus.create({
-        id: `${type}-${status}`,
+        id: parentId,
         title: STATUS_LABELS[status],
         parentId: `save-${type}`,
-        contexts: [type === 'image' ? 'image' : type === 'link' ? 'link' : 'selection'],
+        contexts,
       })
+
+      const folders = foldersByScope[status]
+      if (folders.length === 0) continue
+
+      chrome.contextMenus.create({
+        id: `${parentId}-none`,
+        title: 'No folder',
+        parentId,
+        contexts,
+      })
+      for (const folder of folders) {
+        chrome.contextMenus.create({
+          id: `${parentId}-f-${folder.id}`,
+          title: String(folder.name || 'Folder').slice(0, 60),
+          parentId,
+          contexts,
+        })
+      }
     }
   }
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+  rebuildContextMenus()
 })
+
+chrome.runtime.onStartup.addListener(() => {
+  rebuildContextMenus()
+})
+
+rebuildContextMenus()
 
 // ─── Context menu click handler ───────────────────────────────────────────────
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (!tab?.id) return
 
-  const menuId = String(info.menuItemId)
+  const parsed = parseMenuId(info.menuItemId)
+  if (!parsed) return
+
+  const { type, status, folderId } = parsed
 
   // ── Save image ─────────────────────────────────────────────────────────────
-  if (menuId.startsWith('image-')) {
-    const status = menuId.replace('image-', '')
+  if (type === 'image') {
     const imageSrc = info.srcUrl
     if (!imageSrc) return
 
@@ -231,6 +297,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         alt: '',
         title: 'Saved Image',
         status,
+        folderId,
       }
 
       const result = await saveFileToLnklokr(blob, metadata)
@@ -247,8 +314,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 
   // ── Save link ──────────────────────────────────────────────────────────────
-  if (menuId.startsWith('link-')) {
-    const status = menuId.replace('link-', '')
+  if (type === 'link') {
     const url = info.linkUrl || info.srcUrl || tab.url
     const contentType = detectContentType(url)
 
@@ -263,6 +329,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
           alt: '',
           title: url.split('/').pop() || 'Saved File',
           status,
+          folderId,
         }
         const result = await saveFileToLnklokr(blob, metadata)
         if (result.success) {
@@ -275,7 +342,14 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         notify('Error', 'Failed to fetch or save file', 2)
       }
     } else {
-      const result = await saveWebpageLink({ url, title: info.selectionText || url, description: null, tabTitle: tab.title, status })
+      const result = await saveWebpageLink({
+        url,
+        title: info.selectionText || url,
+        description: null,
+        tabTitle: tab.title,
+        status,
+        folderId,
+      })
       if (result.success) {
         notify(`Link saved to ${status.charAt(0).toUpperCase() + status.slice(1)}!`, 'Saved to LnkLokr')
       } else {
@@ -286,8 +360,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 
   // ── Save selected text ─────────────────────────────────────────────────────
-  if (menuId.startsWith('selection-')) {
-    const status = menuId.replace('selection-', '')
+  if (type === 'selection') {
     const url = tab.url || ''
     const result = await saveWebpageLink({
       url,
@@ -295,6 +368,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       description: info.selectionText || null,
       tabTitle: tab.title,
       status,
+      folderId,
     })
     if (result.success) {
       notify(`Saved to ${status.charAt(0).toUpperCase() + status.slice(1)}!`, 'Saved to LnkLokr')
@@ -308,7 +382,10 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   // Popup sends its Supabase session so the service worker can use it
   if (message.type === 'SYNC_SESSION') {
-    supabase.auth.setSession(message.session).then(() => sendResponse({ success: true }))
+    supabase.auth.setSession(message.session).then(async () => {
+      await rebuildContextMenus()
+      sendResponse({ success: true })
+    })
     return true
   }
 

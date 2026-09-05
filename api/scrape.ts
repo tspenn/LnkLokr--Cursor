@@ -8,7 +8,9 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
  *   meta[name=description], and the page favicon.
  *
  * Returns:
- *   { title, description, thumbnail_url, icon, content_type }
+ *   { title, description, thumbnail_url, icon, content_type,
+ *     listing_price, listing_currency, listing_colors, listing_options,
+ *     listing_description }
  *
  * Used by the browser extension background service worker to enrich link
  * saves without running into extension CSP / CORS restrictions.
@@ -55,6 +57,149 @@ function resolveUrl(src: string | null, base: string): string | null {
   try { return new URL(src, base).href } catch { return null }
 }
 
+function decodeEntities(value: string | null): string | null {
+  if (!value) return null
+  const decoded = value
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)))
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!decoded) return null
+  return decoded.length > 2000 ? `${decoded.slice(0, 1997)}...` : decoded
+}
+
+function asStringList(value: unknown): string[] {
+  if (value == null) return []
+  if (Array.isArray(value)) return value.flatMap(asStringList)
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    return trimmed ? [trimmed] : []
+  }
+  if (typeof value === 'object' && value !== null && 'name' in value) {
+    return asStringList((value as { name: unknown }).name)
+  }
+  return []
+}
+
+function isProduct(item: unknown): item is Record<string, unknown> {
+  if (!item || typeof item !== 'object') return false
+  const type = (item as { '@type'?: unknown })['@type']
+  const types = Array.isArray(type) ? type : [type]
+  return types.some(t => String(t).toLowerCase() === 'product')
+}
+
+function collectProducts(node: unknown, into: Record<string, unknown>[]): void {
+  if (!node) return
+  if (Array.isArray(node)) {
+    for (const item of node) collectProducts(item, into)
+    return
+  }
+  if (typeof node !== 'object') return
+  const rec = node as Record<string, unknown>
+  if (isProduct(rec)) into.push(rec)
+  if (rec['@graph']) collectProducts(rec['@graph'], into)
+}
+
+function extractJsonLdProducts(html: string): Record<string, unknown>[] {
+  const products: Record<string, unknown>[] = []
+  const re = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
+  let match: RegExpExecArray | null
+  while ((match = re.exec(html))) {
+    try {
+      collectProducts(JSON.parse(match[1]), products)
+    } catch {
+      // Ignore malformed JSON-LD blocks
+    }
+  }
+  return products
+}
+
+function firstOffer(product: Record<string, unknown>): Record<string, unknown> | null {
+  const offers = product.offers
+  if (Array.isArray(offers)) {
+    return (offers[0] as Record<string, unknown>) ?? null
+  }
+  if (offers && typeof offers === 'object') return offers as Record<string, unknown>
+  return null
+}
+
+function extractListing(html: string): {
+  listing_price: string | null
+  listing_currency: string | null
+  listing_colors: string | null
+  listing_options: string | null
+  listing_description: string | null
+} {
+  let price: string | null = null
+  let currency: string | null = null
+  let listingDescription: string | null = null
+  const colors = new Set<string>()
+  const options = new Set<string>()
+
+  for (const product of extractJsonLdProducts(html)) {
+    if (!listingDescription) {
+      const fromProduct = asStringList(product.description).join(' ').trim()
+      if (fromProduct) listingDescription = fromProduct
+    }
+    const offer = firstOffer(product)
+    if (offer) {
+      if (!price && offer.price != null) price = String(offer.price)
+      if (!price && offer.lowPrice != null) price = String(offer.lowPrice)
+      if (!currency && offer.priceCurrency != null) currency = String(offer.priceCurrency)
+    }
+    for (const color of asStringList(product.color)) colors.add(color)
+    for (const size of asStringList(product.size)) options.add(`Size: ${size}`)
+    for (const material of asStringList(product.material)) options.add(`Material: ${material}`)
+
+    const props = product.additionalProperty
+    const propList = Array.isArray(props) ? props : props ? [props] : []
+    for (const prop of propList) {
+      if (!prop || typeof prop !== 'object') continue
+      const rec = prop as Record<string, unknown>
+      const name = String(rec.name ?? '').trim()
+      const value = asStringList(rec.value).join(', ')
+      if (!name || !value) continue
+      if (/color/i.test(name)) colors.add(value)
+      else options.add(`${name}: ${value}`)
+    }
+
+    const variants = product.hasVariant
+    const variantList = Array.isArray(variants) ? variants : variants ? [variants] : []
+    for (const variant of variantList) {
+      if (!variant || typeof variant !== 'object') continue
+      const rec = variant as Record<string, unknown>
+      for (const color of asStringList(rec.color)) colors.add(color)
+      for (const name of asStringList(rec.name)) options.add(name)
+    }
+  }
+
+  if (!price) price = extractMeta(html, 'product:price:amount')
+  if (!currency) currency = extractMeta(html, 'product:price:currency')
+  for (const color of asStringList(extractMeta(html, 'product:color'))) colors.add(color)
+
+  return {
+    listing_price: price,
+    listing_currency: currency,
+    listing_colors: colors.size ? [...colors].join('; ') : null,
+    listing_options: options.size ? [...options].join('; ') : null,
+    listing_description: decodeEntities(listingDescription),
+  }
+}
+
+const EMPTY_LISTING = {
+  listing_price: null,
+  listing_currency: null,
+  listing_colors: null,
+  listing_options: null,
+  listing_description: null,
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Allow the extension and the web app to call this endpoint
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -89,6 +234,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       thumbnail_url: targetUrl.href,
       icon: null,
       content_type: 'image',
+      ...EMPTY_LISTING,
     })
   }
   if (directType === 'pdf') {
@@ -98,6 +244,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       thumbnail_url: null,
       icon: null,
       content_type: 'pdf',
+      ...EMPTY_LISTING,
     })
   }
 
@@ -127,16 +274,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         thumbnail_url: null,
         icon: null,
         content_type: 'url',
+        ...EMPTY_LISTING,
       })
     }
 
-    // Only read the first 100 KB — enough for <head> content
+    // Read enough HTML to catch JSON-LD Product blocks in the body
     const reader = response.body?.getReader()
     let html = ''
     let bytes = 0
     if (reader) {
       const decoder = new TextDecoder()
-      while (bytes < 100_000) {
+      while (bytes < 250_000) {
         const { done, value } = await reader.read()
         if (done) break
         html += decoder.decode(value, { stream: true })
@@ -152,13 +300,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const metaDesc = extractMeta(html, 'description')
     const htmlTitle = extractTitle(html)
     const favicon = extractFavicon(html, base)
+    const listing = extractListing(html)
 
     return res.status(200).json({
       title: ogTitle || htmlTitle || targetUrl.hostname,
-      description: ogDesc || metaDesc || null,
+      description: listing.listing_description || decodeEntities(ogDesc) || decodeEntities(metaDesc),
       thumbnail_url: resolveUrl(ogImage, base),
       icon: favicon,
       content_type: 'url',
+      ...listing,
     })
   } catch (err: unknown) {
     clearTimeout(timer)
@@ -170,6 +320,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       thumbnail_url: null,
       icon: null,
       content_type: 'url',
+      ...EMPTY_LISTING,
       _warning: `Scrape failed: ${message}`,
     })
   }

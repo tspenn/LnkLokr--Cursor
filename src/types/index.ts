@@ -22,6 +22,7 @@ export interface Folder {
   color?: string
   icon?: string
   position?: number
+  scope?: 'keep' | 'borrow' | 'share' | 'bury'
   created_at: string
   updated_at?: string
 }
@@ -50,6 +51,10 @@ export interface Link {
   content_type?: string
   /** Set when the file payload is stored in OPFS on this device (free tier). */
   opfs_path?: string | null
+  listing_price?: string | null
+  listing_currency?: string | null
+  listing_colors?: string | null
+  listing_options?: string | null
   created_at: string
   updated_at?: string
 }
